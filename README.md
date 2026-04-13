@@ -11,7 +11,7 @@
 [![Version](https://img.shields.io/badge/version-2.4.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[Features](#-features) | [Functions](#-functions) | [Architecture](#-architecture) | [Development](#-development) | [Platform](https://imperal.io)
+[Features](#features) | [Functions](#functions) | [Architecture](#architecture) | [Development](#development) | [Platform](https://imperal.io)
 
 </div>
 
