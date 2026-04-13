@@ -26,17 +26,26 @@ def _format_date(iso_str: str) -> str:
 
 
 def _prepare_content(note: dict) -> str:
-    """Extract and prepare note content for RichEditor."""
+    """Extract and prepare note content for RichEditor.
+
+    Handles: None values, plain text, markdown, and existing HTML.
+    """
     raw = note.get("content") or note.get("content_text") or ""
     if not raw:
         return ""
+    # Already HTML — pass through
     if "<" in raw and ("</" in raw or "<br" in raw or "<p>" in raw):
         return raw
+    # Plain text / markdown — convert to HTML
     try:
         import markdown
-        html = markdown.markdown(raw, extensions=["extra", "nl2br", "sane_lists"])
+        html = markdown.markdown(
+            raw,
+            extensions=["extra", "nl2br", "sane_lists"],
+        )
         return html
     except Exception:
+        # Fallback: wrap lines in <p> tags
         lines = raw.split("\n\n")
         return "".join(f"<p>{line}</p>" for line in lines if line.strip())
 
@@ -52,6 +61,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     if not note_id:
         return ui.Empty(message="Select a note to edit", icon="FileText")
 
+    # ── Create new note ───────────────────────────────────────────────
     if note_id == "new":
         try:
             result = await _api_post("/notes", {
@@ -83,6 +93,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     created = _format_date(note.get("created_at", ""))
     updated = _format_date(note.get("updated_at", ""))
 
+    # ── Action bar (sticky) ───────────────────────────────────────────
     pin_label = "Unpin" if is_pinned else "Pin"
     pin_icon = "PinOff" if is_pinned else "Pin"
 
@@ -90,11 +101,13 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         ui.Button("Back", icon="ArrowLeft", variant="ghost", size="sm",
                   on_click=ui.Call("__panel__sidebar")),
         ui.Button(pin_label, icon=pin_icon, variant="outline", size="sm",
-                  on_click=ui.Call("note_save", note_id=note_id, field="pin")),
+                  on_click=ui.Call("note_save", note_id=note_id,
+                                  field="pin")),
         ui.Button("Delete", icon="Trash2", variant="destructive", size="sm",
                   on_click=ui.Call("delete_note", note_id=note_id)),
     ], direction="horizontal", wrap=True, sticky=True)
 
+    # ── Title input ───────────────────────────────────────────────────
     title_input = ui.Input(
         placeholder="Note title...",
         value=title,
@@ -102,6 +115,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         on_submit=ui.Call("note_save", note_id=note_id, field="title"),
     )
 
+    # ── Metadata (KeyValue for clean display) ─────────────────────────
     meta_pairs = []
     if word_count:
         meta_pairs.append({"key": "Words", "value": str(word_count)})
@@ -113,6 +127,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         meta_pairs.append({"key": "Tags", "value": " ".join(f"#{t}" for t in tags[:5])})
     meta_pairs.append({"key": "ID", "value": note_id[:12] + "..."})
 
+    # ── Rich Editor (auto-save on change, Ctrl+S explicit save) ───────
     editor = ui.RichEditor(
         content=content_html,
         placeholder="Start writing...",
