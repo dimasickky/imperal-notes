@@ -1,0 +1,53 @@
+{
+  "app_id": "notes",
+  "version": "2.4.0",
+  "capabilities": [],
+  "tools": [
+    {
+      "name": "tool_notes_chat",
+      "description": "Personal notes assistant — create, read, update, delete, search, organize notes with folders and tags, move notes, manage trash",
+      "scopes": ["*"],
+      "parameters": {
+        "message": {"type": "string", "required": false},
+        "kwargs": {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "skeleton_refresh_notes",
+      "description": "Background refresh: note statistics.",
+      "scopes": ["notes.read"],
+      "parameters": {
+        "kwargs": {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "skeleton_alert_notes",
+      "description": "Alert on significant note changes.",
+      "scopes": ["notes.read"],
+      "parameters": {
+        "old": {"type": "string", "required": false},
+        "new": {"type": "string", "required": false},
+        "kwargs": {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "__panel__sidebar",
+      "description": "Panel: Notes",
+      "scopes": [],
+      "parameters": {
+        "params": {"type": "string", "required": true}
+      }
+    },
+    {
+      "name": "__panel__editor",
+      "description": "Panel: Editor",
+      "scopes": [],
+      "parameters": {
+        "params": {"type": "string", "required": true}
+      }
+    }
+  ],
+  "signals": [],
+  "schedules": [],
+  "required_scopes": ["*", "notes.read"]
+}
