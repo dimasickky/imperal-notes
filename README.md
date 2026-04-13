@@ -9,7 +9,7 @@
 [![Platform](https://img.shields.io/badge/platform-Imperal%20Cloud-blue)](https://imperal.io)
 [![SDK](https://img.shields.io/badge/imperal--sdk-1.5.0-blue)](https://pypi.org/project/imperal-sdk/)
 [![Version](https://img.shields.io/badge/version-2.4.0-brightgreen)]()
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-LGPL--3.0-blue)](LICENSE)
 
 [Features](#features) | [Functions](#functions) | [Architecture](#architecture) | [Development](#development) | [Platform](https://imperal.io)
 
@@ -185,7 +185,7 @@ Passes all 12 Imperal SDK validation rules (V1–V12):
 - **Platform:** [imperal.io](https://imperal.io)
 - **SDK:** [github.com/imperalcloud/imperal-sdk](https://github.com/imperalcloud/imperal-sdk)
 - **PyPI:** [pypi.org/project/imperal-sdk](https://pypi.org/project/imperal-sdk/)
-- **License:** [MIT](LICENSE)
+- **License:** [LGPL-3.0](LICENSE)
 
 ---
 
