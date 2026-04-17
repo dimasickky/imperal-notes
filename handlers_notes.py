@@ -54,6 +54,7 @@ class SearchNotesParams(BaseModel):
 
 @chat.function("list_notes", action_type="read", description="List all notes with titles, tags, word count.")
 async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
+    """List all notes with titles, tags, word count."""
     try:
         qp: dict = {"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx), "limit": params.limit}
         if params.folder_id: qp["folder_id"] = params.folder_id
@@ -71,6 +72,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
 
 @chat.function("get_note", action_type="read", description="Get full content of a note by ID.")
 async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
+    """Get full content of a note by ID."""
     try:
         note = (await _api_get(f"/notes/{params.note_id}", {"user_id": _user_id(ctx)})).get("note", {})
         return ActionResult.success(
@@ -85,6 +87,7 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
 
 @chat.function("create_note", action_type="write", event="created", description="Create a new note.")
 async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
+    """Create a new note."""
     try:
         body: dict = {"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
                       "title": params.title, "content_text": params.content_text, "tags": params.tags}
@@ -100,6 +103,7 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
 
 @chat.function("update_note", action_type="write", event="updated", description="Update note title, content, tags, or pin.")
 async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
+    """Update note title, content, tags, or pin."""
     try:
         updates: dict = {}
         if params.title:              updates["title"] = params.title
@@ -120,6 +124,7 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
 
 @chat.function("move_note", action_type="write", event="moved", description="Move note to a folder, or root with empty folder_id.")
 async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
+    """Move note to a folder, or root with empty folder_id."""
     try:
         data = await _api_patch(f"/notes/{params.note_id}", {"user_id": _user_id(ctx)},
                                 {"folder_id": params.folder_id if params.folder_id else None})
@@ -135,6 +140,7 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
 
 @chat.function("delete_note", action_type="destructive", event="deleted", description="Delete a note (moves to trash).")
 async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
+    """Delete a note (moves to trash)."""
     try:
         await _api_delete(f"/notes/{params.note_id}", {"user_id": _user_id(ctx), "permanent": "false"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note moved to trash")
@@ -145,6 +151,7 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
 @chat.function("permanent_delete_note", action_type="destructive", event="permanently_deleted",
                description="Permanently delete a note. Cannot be undone.")
 async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
+    """Permanently delete a note. Cannot be undone."""
     try:
         await _api_delete(f"/notes/{params.note_id}", {"user_id": _user_id(ctx), "permanent": "true"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note permanently deleted")
@@ -154,6 +161,7 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
 
 @chat.function("search_notes", action_type="read", description="Full-text search across all notes.")
 async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
+    """Full-text search across all notes."""
     try:
         results = (await _api_get("/notes/search/fulltext",
                    {"user_id": _user_id(ctx), "q": params.query, "tenant_id": _tenant_id(ctx), "limit": 10})).get("results", [])
