@@ -28,6 +28,7 @@ class NoteSaveParams(BaseModel):
 @chat.function(
     "note_save",
     action_type="write",
+    event="updated",
     description="Save a note field from the editor. Internal panel action.",
 )
 async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
