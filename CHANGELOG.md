@@ -77,7 +77,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 - Full rewrite from raw `@ext.tool` to `ChatExtension` pattern
-- Notes API moved to `api-server:8097` (FastAPI + MySQL/Galera)
+- Notes API moved to a dedicated hosted backend service (FastAPI + MySQL-compatible DB)
 
 ---
 

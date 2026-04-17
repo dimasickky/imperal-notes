@@ -116,9 +116,9 @@ Hub (imperal-hub namespace)
                         ├── handlers_panel_actions.py (editor save)
                         └── skeleton.py            (background stats)
 
-Notes API  (api-server:8097, FastAPI)
+Notes API  (hosted FastAPI backend)
         │
-        └── MySQL / Galera cluster (notes_db)
+        └── MySQL-compatible database (notes_db)
 ```
 
 ### File Structure

@@ -11,7 +11,7 @@ from imperal_sdk.chat import ChatExtension, ActionResult
 
 log = logging.getLogger("notes")
 
-NOTES_API_URL = os.getenv("NOTES_API_URL", "http://66.78.41.10:8097")
+NOTES_API_URL = os.environ["NOTES_API_URL"]
 NOTES_API_KEY = os.getenv("NOTES_API_KEY", "")
 
 _http = None
