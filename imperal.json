@@ -5,7 +5,7 @@
   "tools": [
     {
       "name": "tool_notes_chat",
-      "description": "Personal notes assistant — create, read, update, delete, search, organize notes with folders and tags, move notes, manage trash",
+      "description": "Personal notes assistant — create, read, update, delete, search, pin, tag notes; create, rename, delete, list folders; move notes between folders; manage trash (restore, empty, permanent delete); full-text search across notes. NOT for emails, SQL databases, chat messages, tasks, or legal cases.",
       "scopes": [
         "*"
       ],
