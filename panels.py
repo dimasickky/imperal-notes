@@ -16,7 +16,12 @@ log = logging.getLogger("notes")
 @ext.panel(
     "sidebar", slot="left", title="Notes", icon="StickyNote",
     default_width=280, min_width=200, max_width=500,
-    refresh="on_event:note.created,note.updated,note.deleted,folder_created,folder_deleted",
+    refresh=(
+        "on_event:"
+        "notes.created,notes.updated,notes.deleted,notes.moved,"
+        "notes.restored,notes.permanently_deleted,notes.emptied,"
+        "notes.folder_created,notes.folder_renamed,notes.folder_deleted"
+    ),
 )
 async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
                         active_note_id: str = "", **kwargs):
@@ -38,11 +43,13 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
     children: list = []
 
     trash_variant = "secondary" if view == "trash" else "ghost"
+    new_folder_variant = "secondary" if view == "new_folder" else "ghost"
     children.append(ui.Stack([
         ui.Button("New Note", icon="Plus", variant="primary", size="sm",
                   on_click=ui.Call("__panel__editor", note_id="new")),
-        ui.Button("New Folder", icon="FolderPlus", variant="ghost", size="sm",
-                  on_click=ui.Call("__panel__sidebar", view="new_folder",
+        ui.Button("New Folder", icon="FolderPlus", variant=new_folder_variant, size="sm",
+                  on_click=ui.Call("__panel__sidebar",
+                                  view="notes" if view == "new_folder" else "new_folder",
                                   folder_id=folder_id)),
         ui.Button("Trash", icon="Trash2", variant=trash_variant, size="sm",
                   on_click=ui.Call("__panel__sidebar",
@@ -54,6 +61,19 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
             placeholder="Folder name, press Enter...",
             param_name="name",
             on_submit=ui.Call("create_folder", name="{{value}}"),
+        ))
+
+    rename_target_id = ""
+    if view.startswith("rename_folder:"):
+        rename_target_id = view.split(":", 1)[1]
+        current = next((f["name"] for f in folders if f["id"] == rename_target_id), "")
+        children.append(ui.Input(
+            placeholder="New folder name, press Enter...",
+            param_name="name",
+            value=current,
+            on_submit=ui.Call("rename_folder",
+                             folder_id=rename_target_id,
+                             name="{{value}}"),
         ))
 
     if view == "trash":
@@ -102,11 +122,19 @@ def _append_folders(children: list, folders: list, active_folder: str,
             droppable=True,
             on_drop=ui.Call("move_note", folder_id=f["id"]),
             on_click=ui.Call("__panel__sidebar", folder_id=f["id"]),
-            actions=[{
-                "icon": "Trash2",
-                "on_click": ui.Call("delete_folder", folder_id=f["id"]),
-                "confirm": f"Delete folder '{f['name']}'? Notes move to root.",
-            }],
+            actions=[
+                {
+                    "icon": "Pencil",
+                    "on_click": ui.Call("__panel__sidebar",
+                                       view=f"rename_folder:{f['id']}",
+                                       folder_id=f["id"]),
+                },
+                {
+                    "icon": "Trash2",
+                    "on_click": ui.Call("delete_folder", folder_id=f["id"]),
+                    "confirm": f"Delete folder '{f['name']}'? Notes move to root.",
+                },
+            ],
         ))
     items.append(ui.ListItem(
         id="__unfiled__",

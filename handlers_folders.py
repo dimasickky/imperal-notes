@@ -18,6 +18,12 @@ class CreateFolderParams(BaseModel):
     name: str = Field(description="Folder name")
 
 
+class RenameFolderParams(BaseModel):
+    """Rename an existing folder."""
+    folder_id: str = Field(description="Folder UUID to rename")
+    name: str = Field(description="New folder name")
+
+
 class RestoreNoteParams(BaseModel):
     """Restore a trashed note."""
     note_id: str = Field(description="Note UUID to restore")
@@ -45,8 +51,29 @@ async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
         folder = (await _api_post("/folders", {"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
                                                "name": params.name, "icon": "folder"})).get("folder", {})
         return ActionResult.success(
-            data={"folder_id": folder.get("id"), "name": folder.get("name")},
+            data={"folder_id": folder.get("id"), "name": folder.get("name"),
+                  "refresh_panels": ["sidebar"]},
             summary=f"Folder created: {folder.get('name', params.name)}",
+        )
+    except Exception as e:
+        return ActionResult.error(str(e))
+
+
+@chat.function("rename_folder", action_type="write", event="folder_renamed", description="Rename an existing folder.")
+async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
+    """Rename a folder."""
+    try:
+        if not params.name.strip():
+            return ActionResult.error("Folder name cannot be empty")
+        await _api_patch(
+            f"/folders/{params.folder_id}",
+            {"user_id": _user_id(ctx), "name": params.name},
+            data={},
+        )
+        return ActionResult.success(
+            data={"folder_id": params.folder_id, "name": params.name,
+                  "refresh_panels": ["sidebar"]},
+            summary=f"Folder renamed to: {params.name}",
         )
     except Exception as e:
         return ActionResult.error(str(e))
@@ -57,7 +84,10 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     """Delete a folder (notes move to root)."""
     try:
         await _api_delete(f"/folders/{params.folder_id}", {"user_id": _user_id(ctx)})
-        return ActionResult.success(data={"folder_id": params.folder_id}, summary="Folder deleted, notes moved to root")
+        return ActionResult.success(
+            data={"folder_id": params.folder_id, "refresh_panels": ["sidebar"]},
+            summary="Folder deleted, notes moved to root",
+        )
     except Exception as e:
         return ActionResult.error(str(e))
 
