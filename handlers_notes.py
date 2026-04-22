@@ -3,16 +3,26 @@ from __future__ import annotations
 
 from typing import Optional
 
+import httpx
 from pydantic import BaseModel, Field
 
 from app import chat, ActionResult, _api_get, _api_patch, _api_post, _api_delete, _user_id, _tenant_id
+
+
+# Notes-api caps `limit` at 200 via FastAPI `Query(le=200)`. Keep the extension
+# aligned so the LLM can't ask for 500 and blow up with a raw 422.
+MAX_NOTES_PER_PAGE = 200
 
 
 # ─── Models ───────────────────────────────────────────────────────────── #
 
 class ListNotesParams(BaseModel):
     """List notes with optional filters."""
-    limit: int     = Field(default=50, description="Max notes to return")
+    limit: int     = Field(
+        default=50, ge=1, le=MAX_NOTES_PER_PAGE,
+        description=f"Max notes per page (1-{MAX_NOTES_PER_PAGE}). Use offset to paginate.",
+    )
+    offset: int    = Field(default=0, ge=0, description="Pagination offset")
     folder_id: str = Field(default="", description="Filter by folder")
     search: str    = Field(default="", description="Filter by text")
 
@@ -52,19 +62,74 @@ class SearchNotesParams(BaseModel):
 
 # ─── Handlers ─────────────────────────────────────────────────────────── #
 
-@chat.function("list_notes", action_type="read", description="List all notes with titles, tags, word count.")
+@chat.function(
+    "list_notes", action_type="read",
+    description=(
+        "List notes (paginated). Returns up to `limit` rows per call "
+        f"(max {MAX_NOTES_PER_PAGE}). If `has_more` is true, call again with "
+        "`offset=offset+limit` to fetch the next page."
+    ),
+)
 async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
     """List all notes with titles, tags, word count."""
     try:
-        qp: dict = {"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx), "limit": params.limit}
+        qp: dict = {
+            "user_id": _user_id(ctx),
+            "tenant_id": _tenant_id(ctx),
+            "limit": params.limit,
+            "offset": params.offset,
+        }
         if params.folder_id: qp["folder_id"] = params.folder_id
         if params.search:    qp["search"] = params.search
-        notes = (await _api_get("/notes", qp)).get("notes", [])
+
+        resp = await _api_get("/notes", qp)
+        notes = resp.get("notes", [])
+
+        # Prefer true DB-wide count if notes-api provides it (new field after
+        # the upcoming backend patch). Fall back to page-length heuristic so
+        # older backends still work without surfacing misleading totals.
+        total_count = resp.get("total_count")
+        if total_count is None:
+            # heuristic: a full page likely means there are more rows
+            has_more = len(notes) == params.limit
+            total_known = False
+        else:
+            has_more = (params.offset + len(notes)) < int(total_count)
+            total_known = True
+
+        next_offset = params.offset + len(notes) if has_more else None
+
         return ActionResult.success(
-            data={"notes": [{"note_id": n["id"], "title": n["title"], "word_count": n.get("word_count", 0),
-                             "is_pinned": n.get("is_pinned", False), "tags": n.get("tags", []),
-                             "folder_id": n.get("folder_id")} for n in notes], "total": len(notes)},
-            summary=f"Found {len(notes)} note(s)",
+            data={
+                "notes": [{
+                    "note_id": n["id"], "title": n["title"],
+                    "word_count": n.get("word_count", 0),
+                    "is_pinned": n.get("is_pinned", False),
+                    "tags": n.get("tags", []),
+                    "folder_id": n.get("folder_id"),
+                } for n in notes],
+                "page_size":    len(notes),
+                "offset":       params.offset,
+                "limit":        params.limit,
+                "has_more":     has_more,
+                "next_offset":  next_offset,
+                "total_count":  int(total_count) if total_known else None,
+            },
+            summary=(
+                f"{len(notes)} note(s) on this page"
+                + (f" of {total_count} total" if total_known else "")
+                + (f"; more available (next_offset={next_offset})" if has_more else "")
+            ),
+        )
+    except httpx.HTTPStatusError as e:
+        # Convert raw client errors (422, 500 from backend) into a clean
+        # ActionResult.error so the LLM can react, not the user.
+        try:
+            detail = e.response.json().get("detail") or e.response.text
+        except Exception:
+            detail = e.response.text
+        return ActionResult.error(
+            f"list_notes backend returned {e.response.status_code}: {detail}"
         )
     except Exception as e:
         return ActionResult.error(str(e))
