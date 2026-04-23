@@ -1,61 +1,26 @@
 {
   "app_id": "notes",
-  "version": "2.4.0",
-  "capabilities": [],
+  "version": "2.4.1",
+  "capabilities": ["notes:read", "notes:write"],
   "tools": [
     {
       "name": "tool_notes_chat",
       "description": "Personal notes assistant — create, read, update, delete, search, pin, tag notes; create, rename, delete, list folders; move notes between folders; manage trash (restore, empty, permanent delete); full-text search across notes. NOT for emails, SQL databases, chat messages, tasks, or legal cases.",
-      "scopes": [
-        "*"
-      ],
+      "scopes": [],
       "parameters": {
-        "message": {
-          "type": "string",
-          "required": false
-        },
-        "kwargs": {
-          "type": "string",
-          "required": true
-        }
+        "message": {"type": "string", "required": false},
+        "kwargs": {"type": "string", "required": true}
       }
     },
     {
       "name": "note_save",
       "description": "Save or update a note from the editor panel.",
-      "scopes": [
-        "notes.write"
-      ],
+      "scopes": ["notes:write"],
       "parameters": {
-        "note_id": {
-          "type": "string",
-          "required": false
-        },
-        "title": {
-          "type": "string",
-          "required": false
-        },
-        "content": {
-          "type": "string",
-          "required": true
-        },
-        "kwargs": {
-          "type": "string",
-          "required": true
-        }
-      }
-    },
-    {
-      "name": "skeleton_refresh_notes",
-      "description": "Background refresh: note statistics.",
-      "scopes": [
-        "notes.read"
-      ],
-      "parameters": {
-        "kwargs": {
-          "type": "string",
-          "required": true
-        }
+        "note_id": {"type": "string", "required": false},
+        "title": {"type": "string", "required": false},
+        "content": {"type": "string", "required": true},
+        "kwargs": {"type": "string", "required": true}
       }
     },
     {
@@ -63,10 +28,7 @@
       "description": "Panel: Notes",
       "scopes": [],
       "parameters": {
-        "params": {
-          "type": "string",
-          "required": true
-        }
+        "params": {"type": "string", "required": true}
       }
     },
     {
@@ -74,18 +36,11 @@
       "description": "Panel: Editor",
       "scopes": [],
       "parameters": {
-        "params": {
-          "type": "string",
-          "required": true
-        }
+        "params": {"type": "string", "required": true}
       }
     }
   ],
   "signals": [],
   "schedules": [],
-  "required_scopes": [
-    "*",
-    "notes.read",
-    "notes.write"
-  ]
+  "required_scopes": ["notes:read", "notes:write"]
 }
