@@ -57,7 +57,11 @@ async def _api_delete(path: str, params: dict) -> dict:
 from pathlib import Path as _Path
 SYSTEM_PROMPT = (_Path(__file__).parent / "system_prompt.txt").read_text()
 
-ext = Extension("notes", version="2.4.0")
+ext = Extension(
+    "notes",
+    version="2.4.1",
+    capabilities=["notes:read", "notes:write"],
+)
 
 chat = ChatExtension(
     ext=ext,
