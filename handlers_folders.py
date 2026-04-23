@@ -29,6 +29,11 @@ class RestoreNoteParams(BaseModel):
     note_id: str = Field(description="Note UUID to restore")
 
 
+class ResolveFolderParams(BaseModel):
+    """Find a folder by name (case-insensitive)."""
+    name: str = Field(description="Folder name to resolve (case-insensitive, whitespace-trimmed)")
+
+
 # ─── Folder Handlers ──────────────────────────────────────────────────── #
 
 @chat.function("list_folders", action_type="read", description="List all note folders.")
@@ -39,6 +44,51 @@ async def fn_list_folders(ctx) -> ActionResult:
         return ActionResult.success(
             data={"folders": [{"folder_id": f["id"], "name": f["name"]} for f in folders], "total": len(folders)},
             summary=f"Found {len(folders)} folder(s)",
+        )
+    except Exception as e:
+        return ActionResult.error(str(e))
+
+
+@chat.function(
+    "resolve_folder", action_type="read",
+    description=(
+        "Resolve a folder by name (case-insensitive). Returns the folder_id "
+        "plus match_quality ('exact' | 'prefix' | 'contains' | 'none'). Use "
+        "this INSTEAD of list_folders+manual-match when you only need one "
+        "folder — it's a single call and gives a stable ID across chain steps."
+    ),
+)
+async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
+    """Find a folder by name — exact match preferred, then prefix, then substring."""
+    try:
+        target = params.name.strip().lower()
+        if not target:
+            return ActionResult.error("Folder name cannot be empty")
+
+        folders = (await _api_get("/folders", {
+            "user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
+        })).get("folders", [])
+
+        exact   = [f for f in folders if f["name"].strip().lower() == target]
+        prefix  = [f for f in folders if f["name"].strip().lower().startswith(target)]
+        contain = [f for f in folders if target in f["name"].strip().lower()]
+
+        if exact:
+            hit, quality = exact[0], "exact"
+        elif prefix:
+            hit, quality = prefix[0], "prefix"
+        elif contain:
+            hit, quality = contain[0], "contains"
+        else:
+            return ActionResult.success(
+                data={"folder_id": None, "name": None, "match_quality": "none",
+                      "candidates": [{"folder_id": f["id"], "name": f["name"]} for f in folders]},
+                summary=f"No folder named '{params.name}' — {len(folders)} folder(s) exist",
+            )
+
+        return ActionResult.success(
+            data={"folder_id": hit["id"], "name": hit["name"], "match_quality": quality},
+            summary=f"Resolved '{params.name}' -> '{hit['name']}' ({quality} match)",
         )
     except Exception as e:
         return ActionResult.error(str(e))

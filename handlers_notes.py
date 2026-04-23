@@ -18,13 +18,17 @@ MAX_NOTES_PER_PAGE = 200
 
 class ListNotesParams(BaseModel):
     """List notes with optional filters."""
-    limit: int     = Field(
+    limit: int      = Field(
         default=50, ge=1, le=MAX_NOTES_PER_PAGE,
         description=f"Max notes per page (1-{MAX_NOTES_PER_PAGE}). Use offset to paginate.",
     )
-    offset: int    = Field(default=0, ge=0, description="Pagination offset")
-    folder_id: str = Field(default="", description="Filter by folder")
-    search: str    = Field(default="", description="Filter by text")
+    offset: int     = Field(default=0, ge=0, description="Pagination offset")
+    folder_id: str  = Field(default="", description="Filter by folder")
+    search: str     = Field(default="", description="Filter by text")
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Filter by tag names (AND-match: a note must have all listed tags).",
+    )
 
 
 class NoteIdParams(BaseModel):
@@ -86,9 +90,23 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
         }
         if params.folder_id: qp["folder_id"] = params.folder_id
         if params.search:    qp["search"] = params.search
+        if params.tags:      qp["tags"] = ",".join(params.tags)
 
         resp = await _api_get("/notes", qp)
         notes = resp.get("notes", [])
+
+        # Extension-side tag fallback: if the backend doesn't yet understand
+        # ?tags=a,b it will ignore the filter and return everything. Filter
+        # AND-style client-side so the LLM sees a stable contract regardless
+        # of backend version. Once notes-api ships server-side tag filtering,
+        # this becomes a no-op (the backend has already filtered).
+        if params.tags:
+            wanted = {t.strip().lower() for t in params.tags if t.strip()}
+            if wanted:
+                notes = [
+                    n for n in notes
+                    if wanted.issubset({str(t).lower() for t in n.get("tags", [])})
+                ]
 
         # Prefer true DB-wide count if notes-api provides it (new field after
         # the upcoming backend patch). Fall back to page-length heuristic so
