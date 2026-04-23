@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app import (
     chat, ActionResult,
-    _api_get, _api_patch, _user_id,
+    _api_get, _api_patch, require_user_id,
 )
 
 
@@ -33,7 +33,7 @@ class NoteSaveParams(BaseModel):
 )
 async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
     """Save note title, content, or toggle pin. Returns targeted refresh."""
-    uid = _user_id(ctx)
+    uid = require_user_id(ctx)
 
     try:
         if params.field == "title":
