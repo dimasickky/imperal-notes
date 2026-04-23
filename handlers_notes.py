@@ -57,7 +57,12 @@ class MoveNoteParams(BaseModel):
 
 class SearchNotesParams(BaseModel):
     """Full-text search."""
-    query: str = Field(description="Search query")
+    query: str  = Field(description="Search query")
+    limit: int  = Field(
+        default=20, ge=1, le=MAX_NOTES_PER_PAGE,
+        description=f"Max results per page (1-{MAX_NOTES_PER_PAGE}). Use offset to paginate.",
+    )
+    offset: int = Field(default=0, ge=0, description="Pagination offset")
 
 
 # ─── Handlers ─────────────────────────────────────────────────────────── #
@@ -224,17 +229,69 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
         return ActionResult.error(str(e))
 
 
-@chat.function("search_notes", action_type="read", description="Full-text search across all notes.")
+@chat.function(
+    "search_notes", action_type="read",
+    description=(
+        "Full-text search across all notes (paginated). Returns up to `limit` "
+        f"results per call (max {MAX_NOTES_PER_PAGE}). If `has_more` is true, "
+        "call again with `offset=offset+limit` to fetch the next page. "
+        "Do NOT claim to have searched all notes until `has_more` is false."
+    ),
+)
 async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
     """Full-text search across all notes."""
     try:
-        results = (await _api_get("/notes/search/fulltext",
-                   {"user_id": _user_id(ctx), "q": params.query, "tenant_id": _tenant_id(ctx), "limit": 10})).get("results", [])
+        resp = await _api_get("/notes/search/fulltext", {
+            "user_id":   _user_id(ctx),
+            "tenant_id": _tenant_id(ctx),
+            "q":         params.query,
+            "limit":     params.limit,
+            "offset":    params.offset,
+        })
+        results = resp.get("results", [])
+
+        # Same pagination contract as list_notes: prefer DB-wide total from
+        # backend, fall back to a full-page heuristic so an older backend
+        # doesn't surface a misleading "total".
+        total_count = resp.get("total_count")
+        if total_count is None:
+            has_more = len(results) == params.limit
+            total_known = False
+        else:
+            has_more = (params.offset + len(results)) < int(total_count)
+            total_known = True
+
+        next_offset = params.offset + len(results) if has_more else None
+
         return ActionResult.success(
-            data={"results": [{"note_id": r.get("id"), "title": r.get("title"),
-                               "excerpt": r.get("excerpt", "")[:200]} for r in results],
-                  "total": len(results), "query": params.query},
-            summary=f"Found {len(results)} result(s) for '{params.query}'",
+            data={
+                "results": [{
+                    "note_id":     r.get("id"),
+                    "title":       r.get("title"),
+                    "excerpt":     r.get("excerpt", "")[:200],
+                    "is_archived": r.get("is_archived", False),
+                } for r in results],
+                "query":       params.query,
+                "page_size":   len(results),
+                "offset":      params.offset,
+                "limit":       params.limit,
+                "has_more":    has_more,
+                "next_offset": next_offset,
+                "total_count": int(total_count) if total_known else None,
+            },
+            summary=(
+                f"{len(results)} result(s) on this page for '{params.query}'"
+                + (f" of {total_count} total" if total_known else "")
+                + (f"; more available (next_offset={next_offset})" if has_more else "")
+            ),
+        )
+    except httpx.HTTPStatusError as e:
+        try:
+            detail = e.response.json().get("detail") or e.response.text
+        except Exception:
+            detail = e.response.text
+        return ActionResult.error(
+            f"search_notes backend returned {e.response.status_code}: {detail}"
         )
     except Exception as e:
         return ActionResult.error(str(e))
