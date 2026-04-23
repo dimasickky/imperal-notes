@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import httpx
 
-from app import chat, ActionResult, _api_get, _api_patch, _api_post, _api_delete, _user_id, _tenant_id
+from app import chat, ActionResult, _api_get, _api_patch, _api_post, _api_delete, require_user_id, _tenant_id
 from models_notes import (
     MAX_NOTES_PER_PAGE,
     CreateNoteParams,
@@ -29,7 +29,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
     """List all notes with titles, tags, word count."""
     try:
         qp: dict = {
-            "user_id": _user_id(ctx),
+            "user_id": require_user_id(ctx),
             "tenant_id": _tenant_id(ctx),
             "limit": params.limit,
             "offset": params.offset,
@@ -108,7 +108,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
 async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     """Get full content of a note by ID."""
     try:
-        note = (await _api_get(f"/notes/{params.note_id}", {"user_id": _user_id(ctx)})).get("note", {})
+        note = (await _api_get(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)})).get("note", {})
         return ActionResult.success(
             data={"note_id": note.get("id"), "title": note.get("title"), "content": note.get("content_text", ""),
                   "tags": note.get("tags", []), "is_pinned": note.get("is_pinned", False),
@@ -123,7 +123,7 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
     """Create a new note."""
     try:
-        body: dict = {"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
+        body: dict = {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
                       "title": params.title, "content_text": params.content_text, "tags": params.tags}
         if params.folder_id: body["folder_id"] = params.folder_id
         note = (await _api_post("/notes", body)).get("note", {})
@@ -146,7 +146,7 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
         if params.is_pinned is not None: updates["is_pinned"] = params.is_pinned
         if not updates:
             return ActionResult.error("No fields to update")
-        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": _user_id(ctx)}, updates)
+        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)}, updates)
         title = data.get("note", {}).get("title", "")
         return ActionResult.success(
             data={"note_id": params.note_id, "title": title, "fields_updated": list(updates.keys())},
@@ -160,7 +160,7 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
 async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     """Move note to a folder, or root with empty folder_id."""
     try:
-        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": _user_id(ctx)},
+        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)},
                                 {"folder_id": params.folder_id if params.folder_id else None})
         target = params.folder_id or "All Notes"
         return ActionResult.success(
@@ -176,7 +176,7 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
 async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     """Delete a note (moves to trash)."""
     try:
-        await _api_delete(f"/notes/{params.note_id}", {"user_id": _user_id(ctx), "permanent": "false"})
+        await _api_delete(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx), "permanent": "false"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note moved to trash")
     except Exception as e:
         return ActionResult.error(str(e))
@@ -187,7 +187,7 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     """Permanently delete a note. Cannot be undone."""
     try:
-        await _api_delete(f"/notes/{params.note_id}", {"user_id": _user_id(ctx), "permanent": "true"})
+        await _api_delete(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx), "permanent": "true"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note permanently deleted")
     except Exception as e:
         return ActionResult.error(str(e))
@@ -206,7 +206,7 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
     """Full-text search across all notes."""
     try:
         resp = await _api_get("/notes/search/fulltext", {
-            "user_id":   _user_id(ctx),
+            "user_id":   require_user_id(ctx),
             "tenant_id": _tenant_id(ctx),
             "q":         params.query,
             "limit":     params.limit,

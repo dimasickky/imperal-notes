@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app import chat, ActionResult, _api_get, _api_post, _api_patch, _api_delete, _user_id, _tenant_id
+from app import chat, ActionResult, _api_get, _api_post, _api_patch, _api_delete, require_user_id, _tenant_id
 
 
 # ─── Models ───────────────────────────────────────────────────────────── #
@@ -40,7 +40,7 @@ class ResolveFolderParams(BaseModel):
 async def fn_list_folders(ctx) -> ActionResult:
     """List all note folders."""
     try:
-        folders = (await _api_get("/folders", {"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx)})).get("folders", [])
+        folders = (await _api_get("/folders", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx)})).get("folders", [])
         return ActionResult.success(
             data={"folders": [{"folder_id": f["id"], "name": f["name"]} for f in folders], "total": len(folders)},
             summary=f"Found {len(folders)} folder(s)",
@@ -66,7 +66,7 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
             return ActionResult.error("Folder name cannot be empty")
 
         folders = (await _api_get("/folders", {
-            "user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
+            "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
         })).get("folders", [])
 
         exact   = [f for f in folders if f["name"].strip().lower() == target]
@@ -98,7 +98,7 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
 async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
     """Create a new folder."""
     try:
-        folder = (await _api_post("/folders", {"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
+        folder = (await _api_post("/folders", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
                                                "name": params.name, "icon": "folder"})).get("folder", {})
         return ActionResult.success(
             data={"folder_id": folder.get("id"), "name": folder.get("name"),
@@ -117,7 +117,7 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
             return ActionResult.error("Folder name cannot be empty")
         await _api_patch(
             f"/folders/{params.folder_id}",
-            {"user_id": _user_id(ctx), "name": params.name},
+            {"user_id": require_user_id(ctx), "name": params.name},
             data={},
         )
         return ActionResult.success(
@@ -133,7 +133,7 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
 async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     """Delete a folder (notes move to root)."""
     try:
-        await _api_delete(f"/folders/{params.folder_id}", {"user_id": _user_id(ctx)})
+        await _api_delete(f"/folders/{params.folder_id}", {"user_id": require_user_id(ctx)})
         return ActionResult.success(
             data={"folder_id": params.folder_id, "refresh_panels": ["sidebar"]},
             summary="Folder deleted, notes moved to root",
@@ -148,7 +148,7 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
 async def fn_list_trash(ctx) -> ActionResult:
     """List all notes in trash."""
     try:
-        notes = (await _api_get("/notes", {"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
+        notes = (await _api_get("/notes", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
                                            "is_archived": True, "limit": 50})).get("notes", [])
         return ActionResult.success(
             data={"trash_notes": [{"note_id": n["id"], "title": n["title"], "word_count": n.get("word_count", 0),
@@ -163,7 +163,7 @@ async def fn_list_trash(ctx) -> ActionResult:
 async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
     """Restore a note from trash."""
     try:
-        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": _user_id(ctx)}, {"is_archived": False})
+        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)}, {"is_archived": False})
         note = data.get("note", {})
         return ActionResult.success(
             data={"note_id": params.note_id, "title": note.get("title", ""), "folder_id": note.get("folder_id")},
@@ -177,7 +177,7 @@ async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
 async def fn_empty_trash(ctx) -> ActionResult:
     """Permanently delete all trashed notes."""
     try:
-        data = await _api_post("/notes/trash/empty", params={"user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx)})
+        data = await _api_post("/notes/trash/empty", params={"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx)})
         return ActionResult.success(data={"deleted_count": data.get("deleted_count", 0)},
                                     summary=f"Permanently deleted {data.get('deleted_count', 0)} note(s)")
     except Exception as e:
