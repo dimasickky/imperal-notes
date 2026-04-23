@@ -1,9 +1,13 @@
 """Notes · CRUD handlers."""
 from __future__ import annotations
 
+import logging
+
 import httpx
 
 from app import chat, ActionResult, _api_get, _api_patch, _api_post, _api_delete, require_user_id, _tenant_id
+
+log = logging.getLogger("notes.handlers")
 from models_notes import (
     MAX_NOTES_PER_PAGE,
     CreateNoteParams,
@@ -74,6 +78,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
                     "note_id": n["id"], "title": n["title"],
                     "word_count": n.get("word_count", 0),
                     "is_pinned": n.get("is_pinned", False),
+                    "is_archived": n.get("is_archived", False),
                     "tags": n.get("tags", []),
                     "folder_id": n.get("folder_id"),
                 } for n in notes],
@@ -112,6 +117,7 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
         return ActionResult.success(
             data={"note_id": note.get("id"), "title": note.get("title"), "content": note.get("content_text", ""),
                   "tags": note.get("tags", []), "is_pinned": note.get("is_pinned", False),
+                  "is_archived": note.get("is_archived", False),
                   "word_count": note.get("word_count", 0), "folder_id": note.get("folder_id")},
             summary=f"Note: {note.get('title', 'Untitled')}",
         )
@@ -123,8 +129,24 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
     """Create a new note."""
     try:
+        title   = params.title
+        content = params.content_text
+
+        # Title-bleed guard: defend against automation/template bugs where an
+        # interpolated title ends up concatenated into the content (observed
+        # in prod 2026-04-23 as notes whose title was 'X' and whose content
+        # began with 'XX: ...'). If title is a non-trivial prefix of content,
+        # strip the duplicate from the content start so the data is clean
+        # at rest regardless of whoever called us.
+        if title and len(title) >= 3 and content.startswith(title):
+            log.warning(
+                "title-bleed detected on create_note (title=%r); stripping duplicate prefix from content",
+                title[:40],
+            )
+            content = content[len(title):].lstrip(": \n\t")
+
         body: dict = {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
-                      "title": params.title, "content_text": params.content_text, "tags": params.tags}
+                      "title": title, "content_text": content, "tags": params.tags}
         if params.folder_id: body["folder_id"] = params.folder_id
         note = (await _api_post("/notes", body)).get("note", {})
         return ActionResult.success(
