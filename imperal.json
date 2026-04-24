@@ -1,44 +1,53 @@
 {
   "app_id": "notes",
-  "version": "2.4.1",
+  "version": "3.0.0",
+  "sdk_version": "2.0.0",
   "capabilities": ["notes:read", "notes:write"],
+  "display_name": "Notes",
+  "description": "Personal notes with folders, trash, pin, tags, full-text search.",
   "tools": [
-    {
-      "name": "tool_notes_chat",
-      "description": "Personal notes assistant — create, read, update, delete, search, pin, tag notes; create, rename, delete, list folders; move notes between folders; manage trash (restore, empty, permanent delete); full-text search across notes. NOT for emails, SQL databases, chat messages, tasks, or legal cases.",
-      "scopes": [],
-      "parameters": {
-        "message": {"type": "string", "required": false},
-        "kwargs": {"type": "string", "required": true}
-      }
-    },
-    {
-      "name": "note_save",
-      "description": "Save or update a note from the editor panel.",
-      "scopes": ["notes:write"],
-      "parameters": {
-        "note_id": {"type": "string", "required": false},
-        "title": {"type": "string", "required": false},
-        "content": {"type": "string", "required": true},
-        "kwargs": {"type": "string", "required": true}
-      }
-    },
-    {
-      "name": "__panel__sidebar",
-      "description": "Panel: Notes",
-      "scopes": [],
-      "parameters": {
-        "params": {"type": "string", "required": true}
-      }
-    },
-    {
-      "name": "__panel__editor",
-      "description": "Panel: Editor",
-      "scopes": [],
-      "parameters": {
-        "params": {"type": "string", "required": true}
-      }
-    }
+    { "name": "list_notes", "scopes": ["notes:read"],
+      "description": "List the user's notes with optional folder / full-text / tag filters. Paginated up to 200 per page." },
+    { "name": "get_note", "scopes": ["notes:read"],
+      "description": "Retrieve the full content, tags and metadata of a single note by ID." },
+    { "name": "search_notes", "scopes": ["notes:read"],
+      "description": "Full-text search across the user's notes. Paginated with has_more / next_offset." },
+    { "name": "create_note", "scopes": ["notes:write"],
+      "description": "Create a new note with title and text content, optional folder + tags." },
+    { "name": "update_note", "scopes": ["notes:write"],
+      "description": "Update title, text content, tags or pin-state of an existing note." },
+    { "name": "move_note", "scopes": ["notes:write"],
+      "description": "Move a note to another folder, or to the root when folder_id is empty." },
+    { "name": "delete_note", "scopes": ["notes:write"],
+      "description": "Move a note to the trash (restorable)." },
+    { "name": "permanent_delete_note", "scopes": ["notes:write"], "cost_credits": 1,
+      "description": "Permanently delete a note bypassing the trash. Cannot be undone." },
+    { "name": "list_folders", "scopes": ["notes:read"],
+      "description": "List every note folder owned by the user." },
+    { "name": "resolve_folder", "scopes": ["notes:read"],
+      "description": "Resolve a folder by name (case-insensitive) with match_quality." },
+    { "name": "create_folder", "scopes": ["notes:write"],
+      "description": "Create a new note folder." },
+    { "name": "rename_folder", "scopes": ["notes:write"],
+      "description": "Rename an existing folder." },
+    { "name": "delete_folder", "scopes": ["notes:write"], "cost_credits": 1,
+      "description": "Delete a folder — notes inside are moved to the root." },
+    { "name": "list_trash", "scopes": ["notes:read"],
+      "description": "List every note currently in the trash." },
+    { "name": "restore_note", "scopes": ["notes:write"],
+      "description": "Restore a note from the trash back to its previous folder." },
+    { "name": "empty_trash", "scopes": ["notes:write"], "cost_credits": 1,
+      "description": "Permanently delete every note in the trash. Cannot be undone." },
+    { "name": "note_save", "scopes": ["notes:write"],
+      "description": "Internal panel action: save one field of a note from the editor UI." }
+  ],
+  "panels": [
+    { "id": "sidebar", "slot": "left", "title": "Notes", "icon": "StickyNote" },
+    { "id": "editor",  "slot": "center_overlay", "title": "Notes Editor", "icon": "FileText" }
+  ],
+  "skeleton_sections": [
+    { "name": "notes", "ttl": 300,
+      "description": "Note statistics: total, pinned, trash count, recent titles." }
   ],
   "signals": [],
   "schedules": [],

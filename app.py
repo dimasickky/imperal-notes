@@ -1,4 +1,11 @@
-"""Notes · Shared state & extension setup."""
+"""Notes · Shared state, HTTP helpers, Extension instance.
+
+Loader entry point: panels / skeleton / lifecycle wiring all runs off the
+module-level ``ext`` instance so the kernel (which discovers extensions by
+walking for an attribute with ``.tools: dict`` + ``.signals``) picks it up
+unchanged. Tool methods live on the ``NotesExtension`` subclass declared in
+``tools.py`` (v2.0 class-based surface).
+"""
 from __future__ import annotations
 
 import logging
@@ -6,23 +13,26 @@ import os
 
 import httpx
 
-from imperal_sdk import Extension
-from imperal_sdk.chat import ChatExtension, ActionResult
 from imperal_sdk.http import HTTPClient
 
+from tools import NotesExtension
+
 log = logging.getLogger("notes")
+
+# ─── Config ──────────────────────────────────────────────────────────── #
 
 NOTES_API_URL = os.environ["NOTES_API_URL"]
 NOTES_API_KEY = os.getenv("NOTES_API_KEY", "")
 
 
-# ─── HTTP via SDK HTTPClient (replaces direct httpx.AsyncClient) ──────── #
+# ─── HTTP via SDK HTTPClient ─────────────────────────────────────────── #
 #
-# Module-level HTTPClient chosen because _api_* helpers are called from
-# panel renderers + handlers alike — threading ctx through every layer
-# would be invasive. Same wrapper ctx.http uses under the hood: typed
-# HTTPResponse (.ok / .status_code / .body / .json()), per-request httpx
-# session, no cross-tenant state bleed.
+# Module-level client because ``_api_*`` helpers are shared between tools,
+# panels, and skeleton refreshers. Threading ctx.http through every layer
+# would be invasive for no federal gain — HTTPClient is the same wrapper
+# ctx.http uses under the hood (per-request httpx.AsyncClient, no cross-
+# tenant bleed). The backend enforces authn via `x-api-key` + user_id on
+# every request, so no tenant state leaks at this layer.
 
 _http_client: HTTPClient | None = None
 
@@ -43,15 +53,13 @@ def _auth_headers() -> dict:
 
 
 def _raise_from(resp, path: str) -> None:
-    """Mirror httpx.raise_for_status() using the SDK response shape.
+    """Mirror httpx.raise_for_status() on the SDK response shape.
 
-    Preserves the `httpx.HTTPStatusError` type that handlers already catch,
-    so the migration doesn't ripple into every handler's except-clauses.
+    Preserves the ``httpx.HTTPStatusError`` type so callers can catch the
+    familiar exception and inspect ``.response.status_code`` / ``.response.text``.
     """
     if resp.ok:
         return
-    # Synthesise a minimal httpx.Request/Response pair so HTTPStatusError
-    # holds the real status code + body for handlers that inspect them.
     body = resp.body
     if isinstance(body, dict):
         import json as _json
@@ -72,29 +80,22 @@ def _raise_from(resp, path: str) -> None:
 
 # ─── Identity helpers ─────────────────────────────────────────────────── #
 #
-# _user_id returns "" when ctx has no user attached. This is correct for
-# panel/skeleton renderers which may fire for anonymous sessions and must
-# tolerate absence (they return empty shapes). Chat handlers MUST use
-# require_user_id() so an empty ctx surfaces a loud error instead of
-# silently scoping the backend query to "no-user" and returning 0 rows.
+# ``_user_id`` returns "" on missing ctx.user — correct for panel / skeleton
+# renderers that may fire for anonymous sessions and must tolerate absence.
+# Tool handlers MUST use ``require_user_id`` so an empty ctx surfaces a loud
+# error instead of silently scoping the backend query to no-user (which
+# would return 0 rows indistinguishable from a genuinely empty folder).
 
 def _user_id(ctx) -> str:
     return ctx.user.id if hasattr(ctx, "user") and ctx.user else ""
 
 
 def require_user_id(ctx) -> str:
-    """Return ctx.user.id or raise. Use from every @chat.function handler.
-
-    When a chain step arrives without ctx.user populated (kernel-side bug
-    observed 2026-04-23), a silent "" would scope every backend query to
-    no-user and hand back empty lists — indistinguishable from a real
-    empty folder. Raising makes the failure loud and catchable.
-    """
     uid = _user_id(ctx)
     if not uid:
         raise RuntimeError(
             "No authenticated user on context. Refusing to query notes-api "
-            "with an empty user_id (would silently return no data)."
+            "with an empty user_id (would silently return no data).",
         )
     return uid
 
@@ -105,20 +106,28 @@ def _tenant_id(ctx) -> str:
     return "default"
 
 
-async def _api_get(path: str, params: dict = None) -> dict:
+# ─── Backend API helpers ─────────────────────────────────────────────── #
+
+async def _api_get(path: str, params: dict | None = None) -> dict:
     r = await _http().get(_url(path), params=params or {}, headers=_auth_headers())
     _raise_from(r, path)
     return r.json()
 
 
-async def _api_post(path: str, data: dict = None, params: dict = None) -> dict:
-    r = await _http().post(_url(path), json=data, params=params, headers=_auth_headers())
+async def _api_post(
+    path: str, data: dict | None = None, params: dict | None = None,
+) -> dict:
+    r = await _http().post(
+        _url(path), json=data, params=params, headers=_auth_headers(),
+    )
     _raise_from(r, path)
     return r.json()
 
 
 async def _api_patch(path: str, params: dict, data: dict) -> dict:
-    r = await _http().patch(_url(path), params=params, json=data, headers=_auth_headers())
+    r = await _http().patch(
+        _url(path), params=params, json=data, headers=_auth_headers(),
+    )
     _raise_from(r, path)
     return r.json()
 
@@ -128,25 +137,17 @@ async def _api_delete(path: str, params: dict) -> dict:
     _raise_from(r, path)
     return r.json()
 
-from pathlib import Path as _Path
-SYSTEM_PROMPT = (_Path(__file__).parent / "system_prompt.txt").read_text()
 
-ext = Extension(
-    "notes",
-    version="2.4.1",
+# ─── Extension instance (loader entry point) ─────────────────────────── #
+
+ext = NotesExtension(
+    app_id="notes",
+    version="3.0.0",
     capabilities=["notes:read", "notes:write"],
 )
 
-chat = ChatExtension(
-    ext=ext,
-    tool_name="tool_notes_chat",
-    description=(
-        "Personal notes assistant — create, read, update, delete, search, "
-        "organize notes with folders and tags, move notes, manage trash"
-    ),
-    system_prompt=SYSTEM_PROMPT,
-    model="claude-haiku-4-5-20251001",
-)
+
+# ─── Lifecycle / health ──────────────────────────────────────────────── #
 
 @ext.health_check
 async def health(ctx) -> dict:
@@ -158,6 +159,8 @@ async def health(ctx) -> dict:
     except Exception:
         return {"status": "degraded", "version": ext.version, "api": "unreachable"}
 
+
 @ext.on_install
 async def on_install(ctx):
-    log.info(f"notes installed for user {ctx.user.id if ctx and hasattr(ctx, 'user') and ctx.user else 'system'}")
+    uid = _user_id(ctx) or "system"
+    log.info("notes installed for user %s", uid)

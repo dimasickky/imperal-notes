@@ -6,6 +6,78 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.0.0] — 2026-04-24
+
+**BREAKING · SDK v2.0.0 / Webbee Single Voice migration.**
+
+Full rebuild on the v2.0 class-based tool surface. No ChatExtension, no
+per-extension system prompt — Webbee Narrator composes all user-facing
+prose kernel-side from typed output schemas. No user-visible feature
+regressions: all 16 business operations preserved, wire contract to
+notes-api (api-server:8097) unchanged.
+
+### Added
+
+- **`schemas.py`** — 17 Pydantic output schemas, one per tool. Every
+  schema carries `ok: bool = True` + `error: str | None = None` plus
+  the domain fields. Errors flow through the schema instead of raising,
+  so the Narrator can ground prose on both success and failure states
+  via a single shape. Grounding is federal-safe: leaf fields are
+  human-readable (`note_id`, `title`, `folder_id`, `match_quality`),
+  allowing the Narrator verifier to claim-check by substring / exact
+  match (I-CLAIM-GROUNDING-TYPES).
+- **`tools.py` · `NotesExtension(Extension)`** — class-based tool host.
+  17 `@sdk_ext.tool` methods with direct-arg signatures (no Pydantic
+  params wrapper), explicit `ctx` after `self`, typed return.
+- **`cost_credits=1` on destructive tools** — `permanent_delete_note`,
+  `delete_folder`, `empty_trash` trigger the pre-ACK confirmation gate
+  regardless of user's default confirmation setting.
+- **`note_save` promoted to top-level tool** — still panel-internal
+  (description explicitly advises LLM to prefer `update_note`), but now
+  visible in the manifest for audit.
+
+### Removed
+
+- **`ChatExtension`** + `tool_notes_chat` orchestrator. Per-extension
+  LLM loops are gone in v2 — the kernel dispatches each tool directly.
+- **`_system_prompt` + `system_prompt.txt`** (I-LOADER-REJECT-SYSTEM-PROMPT).
+  All identity / voice / persona moved to the Webbee Narrator.
+- **`@chat.function` + `ActionResult.success/.error`** envelope. Every
+  handler replaced by `@sdk_ext.tool`; success/error flows through
+  output_schema fields.
+- **`action_type="read|write|destructive"`** kwarg. In v2 this signal
+  moves to the Navigation classifier (coarse read/write/destructive
+  resolution) and the `cost_credits` gate.
+- **`handlers_notes.py`, `handlers_folders.py`, `handlers_panel_actions.py`,
+  `models_notes.py`** — collapsed into `tools.py` + `schemas.py`.
+
+### Changed
+
+- **`imperal.json`** — `sdk_version: "2.0.0"`, per-tool manifest with
+  minimal scopes + description, legacy `tool_notes_chat` entry removed.
+- **`requirements.txt`** — `imperal-sdk>=2.0.0,<3.0.0`.
+- **`main.py`** — bootstrap now imports `app` (which instantiates
+  `NotesExtension` and exposes it as `ext`), then side-effect-imports
+  `skeleton`, `panels`, `panels_editor`. The kernel loader discovers
+  `ext` by duck-typing (`hasattr(attr, 'tools')` + `hasattr(attr, 'signals')`).
+
+### Preserved (unchanged shape, same module paths)
+
+- `skeleton.py` — `@ext.skeleton("notes", ttl=300)` refresher, same
+  `{"response": {...}}` contract.
+- `panels.py` (sidebar, left slot) and `panels_editor.py` (editor,
+  center_overlay slot) — `@ext.panel` decorators unchanged.
+- Backend wire contract with notes-api (paths, query params, body
+  fields, response shapes).
+
+### Migration
+
+No user-visible change on the panel. Developer Portal redeploy from
+`sdk-v2-migration` branch. Rollback: checkout tag `v2.4.1` +
+`pip install imperal-sdk==1.6.2` in worker venv + restart kernel.
+
+---
+
 ## [2.4.1] — 2026-04-23
 
 Fundamental hygiene pass after deep audit of a broken Webbee session where the LLM silently no-op'd on "delete notes tagged X", claimed to have "searched all 187 notes" after a 10-row window, and produced a 92→0 count drift across chain steps. No behaviour changes for the LLM, but the extension now closes the feature gaps and observability holes that let those bugs hide. Mirror-patch of the sql-db 1.3.0 refactor.
