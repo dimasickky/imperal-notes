@@ -13,13 +13,10 @@
       }
     },
     {
-      "name": "note_save",
-      "description": "Save or update a note from the editor panel.",
-      "scopes": ["notes:write"],
+      "name": "skeleton_refresh_notes",
+      "description": "Refresh note statistics: total count, pinned, trash, recent titles.",
+      "scopes": ["notes:read"],
       "parameters": {
-        "note_id": {"type": "string", "required": false},
-        "title": {"type": "string", "required": false},
-        "content": {"type": "string", "required": true},
         "kwargs": {"type": "string", "required": true}
       }
     },
