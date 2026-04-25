@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.4.3] — 2026-04-26
+
+Fix sidebar counters for users past the 200-note threshold. Trash counter likewise.
+
+### Fixed
+
+- **`panels.py` "All Notes" counter** now reads `total_count` from the notes-api response instead of `len(all_notes)`. Previously the sidebar fetched `limit=200` and reported the array length as the global total, so any user with more than 200 active notes saw `200` as the counter regardless of their actual count (e.g. 278 → displayed `200`).
+- **Per-folder and unfiled counters** continue to be computed locally over the fetched array. To keep them accurate for larger libraries, the active-notes fetch limit moved from `200` to `1000`. Users approaching that ceiling will need a second-page fetch eventually — captured as future work, not addressed here.
+- **Trash limit** raised from `50` to `200` for the same reason — archived counts past 50 were silently truncated.
+
+### Why this matters
+
+When the assistant said "you have 0 notes" yesterday, the underlying call was `list_notes(limit=1)` which returned a 1-element array; the LLM read the array length instead of the `total_count` field. The chat handlers (`handlers_notes.py`, `skeleton.py`) already use `total_count` correctly — only the sidebar panel and trash view were stuck on the array-length pattern. With this fix, panel UI and chat surface report the same number.
+
+### Not changed
+
+- `tool_notes_chat` system prompt — the LLM-side count hallucination is a separate concern (read `total_count` from the tool result instead of the array). Tracked, not patched here.
+
+---
+
 ## [2.4.2] — 2026-04-25
 
 Pin `imperal-sdk==1.6.2` after rolling back the v3.0.0 / SDK v2.0 / Webbee Single Voice rebuild. Code unchanged from 2.4.1; only the SDK constraint moves from `>=1.5.26,<1.6` to the exact runtime version in production. The v2.0 work is preserved on the `sdk-v2-migration` branch (and tagged `pre-1.6.2-rebuild-2026-04-25` on main pre-reset) for incremental re-roll once the kernel `direct_call.py` path stabilises.
