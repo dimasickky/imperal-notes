@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.4.2] — 2026-04-25
+
+Pin `imperal-sdk==1.6.2` after rolling back the v3.0.0 / SDK v2.0 / Webbee Single Voice rebuild. Code unchanged from 2.4.1; only the SDK constraint moves from `>=1.5.26,<1.6` to the exact runtime version in production. The v2.0 work is preserved on the `sdk-v2-migration` branch (and tagged `pre-1.6.2-rebuild-2026-04-25` on main pre-reset) for incremental re-roll once the kernel `direct_call.py` path stabilises.
+
+### Changed
+
+- **`requirements.txt`** — `imperal-sdk>=1.5.26,<1.6` → `imperal-sdk==1.6.2`. Hard pin is required because PyPI `imperal-sdk==2.0.0` is immutable and resolver picks it without an explicit constraint (per fresh-session rollback validation 2026-04-25).
+
+---
+
 ## [2.4.1] — 2026-04-23
 
 Fundamental hygiene pass after deep audit of a broken Webbee session where the LLM silently no-op'd on "delete notes tagged X", claimed to have "searched all 187 notes" after a 10-row window, and produced a 92→0 count drift across chain steps. No behaviour changes for the LLM, but the extension now closes the feature gaps and observability holes that let those bugs hide. Mirror-patch of the sql-db 1.3.0 refactor.
