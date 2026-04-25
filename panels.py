@@ -34,11 +34,17 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
         folders = []
 
     try:
-        all_notes = (await _api_get("/notes", {
-            "user_id": uid, "tenant_id": tid, "limit": 200,
-        })).get("notes", [])
+        notes_resp = await _api_get("/notes", {
+            "user_id": uid, "tenant_id": tid, "limit": 1000,
+        }) or {}
+        all_notes = notes_resp.get("notes", [])
+        # total_count is the DB-wide count; fall back to fetched array length
+        # for backends that don't report it. Used for the "All Notes" header
+        # so the displayed counter is honest even past the fetch limit.
+        total_count = int(notes_resp.get("total_count", len(all_notes)))
     except Exception:
         all_notes = []
+        total_count = 0
 
     children: list = []
 
@@ -79,7 +85,7 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
     if view == "trash":
         await _append_trash(children, uid, tid)
     else:
-        _append_folders(children, folders, folder_id, all_notes)
+        _append_folders(children, folders, folder_id, all_notes, total_count)
         _append_notes(children, all_notes, folder_id, folders, active_note_id)
 
     root = ui.Stack(children=children, gap=2, className="min-h-full")
@@ -97,8 +103,7 @@ def _count_notes_in_folder(notes: list, folder_id: str) -> int:
 
 
 def _append_folders(children: list, folders: list, active_folder: str,
-                    all_notes: list) -> None:
-    total = len(all_notes)
+                    all_notes: list, total: int) -> None:
     unfiled = sum(1 for n in all_notes if not n.get("folder_id"))
 
     items = [
@@ -193,7 +198,7 @@ async def _append_trash(children: list, uid: str, tid: str) -> None:
     try:
         trash = (await _api_get("/notes", {
             "user_id": uid, "tenant_id": tid,
-            "is_archived": True, "limit": 50,
+            "is_archived": True, "limit": 200,
         })).get("notes", [])
     except Exception:
         trash = []
