@@ -6,6 +6,33 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.4.5] — 2026-04-26
+
+Enterprise-grade input hardening: no more raw Pydantic validation traces leaking to chat, no more silent `0` counters when an API call fails. First pass of the `feedback_dimasickky_enterprise_quality` checklist.
+
+### Why this matters
+
+Yesterday a user saw `1 validation error for CreateNoteParams content_text Field required [type=missing, input_value={'content': '...', 'title': 'Работа222'}, input_type=dict]` directly in chat. The classifier-LLM had passed `content` (a synonym) instead of `content_text`, Pydantic rejected, and the stack trace surfaced verbatim. That class of leak — internal validator output reaching the user — is incompatible with a paid extension on `panel.imperal.io`.
+
+### Fixed
+
+- **All Pydantic input fields wired with `validation_alias=AliasChoices(...)`** so LLM synonyms (`content`/`body`/`text` for `content_text`, `name`/`subject` for `title`, `id`/`uuid` for `note_id`, `q`/`search` for `query`, `folder`/`folderId` for `folder_id`, `labels` for `tags`, `pinned` for `is_pinned`, `page_size`/`per_page` for `limit`, `skip` for `offset`) are silently accepted instead of producing `MISSING_FIELD` errors. Wire contract with notes-api stays stable — aliases are input-only.
+- **All previously-required text fields now carry safe `default=""` / `default_factory=...`** — handlers normalize empty values explicitly with friendly Russian errors (`"Не указан note_id. Сначала найди заметку через search_notes."`) instead of letting Pydantic reject with a stack trace.
+- **`fn_create_note` no longer creates empty notes** when both `title` and `content_text` are missing — returns an explicit error asking the LLM to provide at least one. Logs an `INFO` line when only `title` is filled (suspected folder/title confusion) so the system_prompt can be tuned later.
+- **`models_notes.py` and `handlers_folders.py` model classes** all carry `model_config = ConfigDict(populate_by_name=True)` so both the canonical name and any alias can populate the field interchangeably.
+
+### Sidebar UX
+
+- **`panels.py` no longer renders a misleading `0` counter when the API call fails.** Both the active-notes and folders fetches now log a `WARNING` with the user id and the underlying exception, and the panel renders an explicit `ui.Empty(message="Не удалось загрузить заметки. Попробуй обновить страницу.", icon="AlertTriangle")` so the user can distinguish "no data" from "load failed". Trash view applies the same pattern.
+
+### Out of scope
+
+- `tool_notes_chat` system_prompt rules for title-vs-folder_id confusion and `total_count` discipline — slated for the next patch.
+- `handlers_panel_actions.py` (`NoteSaveParams`) — it's panel-internal, not LLM-callable; not hardened in this pass.
+- `models_notes.py` field type for `tags` (`list[str]`) when the LLM passes a comma-separated string — also next pass.
+
+---
+
 ## [2.4.4] — 2026-04-26
 
 Hotfix on top of 2.4.3 — sidebar showed `0` because the bumped fetch limit hit a notes-api server-side cap.

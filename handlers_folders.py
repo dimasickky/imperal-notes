@@ -1,37 +1,75 @@
 """Notes · Folder & trash handlers."""
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app import chat, ActionResult, _api_get, _api_post, _api_patch, _api_delete, require_user_id, _tenant_id
 
 
 # ─── Models ───────────────────────────────────────────────────────────── #
+#
+# Same hardening rationale as models_notes.py: every field that an LLM is
+# observed to confuse is wired with `validation_alias=AliasChoices(...)`,
+# and all "id"/"name"-shaped required fields carry a safe default so a
+# missing arg becomes a friendly ActionResult.error instead of a Pydantic
+# stack trace surfaced in the chat.
+
+_MODEL_CONFIG = ConfigDict(populate_by_name=True)
+
 
 class FolderIdParams(BaseModel):
     """Target a specific folder."""
-    folder_id: str = Field(description="Folder UUID")
+    model_config = _MODEL_CONFIG
+
+    folder_id: str = Field(
+        default="", description="Folder UUID. Required.",
+        validation_alias=AliasChoices("folder_id", "folder", "folderId", "id", "uuid"),
+    )
 
 
 class CreateFolderParams(BaseModel):
     """Create a new folder."""
-    name: str = Field(description="Folder name")
+    model_config = _MODEL_CONFIG
+
+    name: str = Field(
+        default="", description="Folder name. Required.",
+        validation_alias=AliasChoices("name", "title", "folder_name", "folderName"),
+    )
 
 
 class RenameFolderParams(BaseModel):
     """Rename an existing folder."""
-    folder_id: str = Field(description="Folder UUID to rename")
-    name: str = Field(description="New folder name")
+    model_config = _MODEL_CONFIG
+
+    folder_id: str = Field(
+        default="", description="Folder UUID to rename. Required.",
+        validation_alias=AliasChoices("folder_id", "folder", "folderId", "id", "uuid"),
+    )
+    name: str = Field(
+        default="", description="New folder name. Required.",
+        validation_alias=AliasChoices("name", "title", "new_name", "folder_name"),
+    )
 
 
 class RestoreNoteParams(BaseModel):
     """Restore a trashed note."""
-    note_id: str = Field(description="Note UUID to restore")
+    model_config = _MODEL_CONFIG
+
+    note_id: str = Field(
+        default="", description="Note UUID to restore. Required.",
+        validation_alias=AliasChoices("note_id", "id", "noteId", "uuid"),
+    )
 
 
 class ResolveFolderParams(BaseModel):
     """Find a folder by name (case-insensitive)."""
-    name: str = Field(description="Folder name to resolve (case-insensitive, whitespace-trimmed)")
+    model_config = _MODEL_CONFIG
+
+    name: str = Field(
+        default="",
+        description="Folder name to resolve (case-insensitive, whitespace-trimmed). Required.",
+        validation_alias=AliasChoices("name", "title", "folder_name", "folderName", "query"),
+    )
 
 
 # ─── Folder Handlers ──────────────────────────────────────────────────── #
@@ -63,7 +101,7 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
     try:
         target = params.name.strip().lower()
         if not target:
-            return ActionResult.error("Folder name cannot be empty")
+            return ActionResult.error("Не указано имя папки. Передай name (или title/folder_name).")
 
         folders = (await _api_get("/folders", {
             "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
@@ -98,8 +136,11 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
 async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
     """Create a new folder."""
     try:
+        name = params.name.strip()
+        if not name:
+            return ActionResult.error("Не указано имя папки. Передай name (или title/folder_name).")
         folder = (await _api_post("/folders", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
-                                               "name": params.name, "icon": "folder"})).get("folder", {})
+                                               "name": name, "icon": "folder"})).get("folder", {})
         return ActionResult.success(
             data={"folder_id": folder.get("id"), "name": folder.get("name"),
                   "refresh_panels": ["sidebar"]},
@@ -113,8 +154,12 @@ async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
 async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
     """Rename a folder."""
     try:
+        if not params.folder_id.strip():
+            return ActionResult.error(
+                "Не указан folder_id. Сначала найди папку через resolve_folder."
+            )
         if not params.name.strip():
-            return ActionResult.error("Folder name cannot be empty")
+            return ActionResult.error("Новое имя папки не должно быть пустым.")
         await _api_patch(
             f"/folders/{params.folder_id}",
             {"user_id": require_user_id(ctx), "name": params.name},
@@ -133,6 +178,10 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
 async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     """Delete a folder (notes move to root)."""
     try:
+        if not params.folder_id.strip():
+            return ActionResult.error(
+                "Не указан folder_id. Сначала найди папку через resolve_folder."
+            )
         await _api_delete(f"/folders/{params.folder_id}", {"user_id": require_user_id(ctx)})
         return ActionResult.success(
             data={"folder_id": params.folder_id, "refresh_panels": ["sidebar"]},
@@ -163,6 +212,10 @@ async def fn_list_trash(ctx) -> ActionResult:
 async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
     """Restore a note from trash."""
     try:
+        if not params.note_id.strip():
+            return ActionResult.error(
+                "Не указан note_id для восстановления. Сначала найди заметку через list_trash."
+            )
         data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)}, {"is_archived": False})
         note = data.get("note", {})
         return ActionResult.success(

@@ -28,11 +28,15 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
     """Notes sidebar — folders + note list + trash."""
     uid, tid = _user_id(ctx), _tenant_id(ctx)
 
+    folders_failed = False
     try:
         folders = (await _api_get("/folders", {"user_id": uid, "tenant_id": tid})).get("folders", [])
-    except Exception:
+    except Exception as e:
+        log.warning("sidebar: GET /folders failed for user=%s: %s", uid, e)
         folders = []
+        folders_failed = True
 
+    notes_failed = False
     try:
         # notes-api caps limit at 200 server-side (HTTP 422 above that).
         # The fetch is for sidebar's per-folder bucketing; the global
@@ -42,9 +46,11 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
         }) or {}
         all_notes = notes_resp.get("notes", [])
         total_count = int(notes_resp.get("total_count", len(all_notes)))
-    except Exception:
+    except Exception as e:
+        log.warning("sidebar: GET /notes failed for user=%s: %s", uid, e)
         all_notes = []
         total_count = 0
+        notes_failed = True
 
     children: list = []
 
@@ -84,6 +90,13 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
 
     if view == "trash":
         await _append_trash(children, uid, tid)
+    elif notes_failed or folders_failed:
+        # Don't render a misleading "0" counter when the API call failed —
+        # show an explicit error state with a refresh hint instead.
+        children.append(ui.Empty(
+            message="Не удалось загрузить заметки. Попробуй обновить страницу.",
+            icon="AlertTriangle",
+        ))
     else:
         _append_folders(children, folders, folder_id, all_notes, total_count)
         _append_notes(children, all_notes, folder_id, folders, active_note_id)
@@ -200,8 +213,13 @@ async def _append_trash(children: list, uid: str, tid: str) -> None:
             "user_id": uid, "tenant_id": tid,
             "is_archived": True, "limit": 200,
         })).get("notes", [])
-    except Exception:
-        trash = []
+    except Exception as e:
+        log.warning("sidebar trash: GET /notes is_archived=true failed for user=%s: %s", uid, e)
+        children.append(ui.Empty(
+            message="Не удалось загрузить корзину. Попробуй обновить страницу.",
+            icon="AlertTriangle",
+        ))
+        return
 
     if not trash:
         children.append(ui.Empty(message="Trash is empty", icon="CheckCircle"))
