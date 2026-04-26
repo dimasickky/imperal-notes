@@ -113,6 +113,10 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
 async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     """Get full content of a note by ID."""
     try:
+        if not params.note_id.strip():
+            return ActionResult.error(
+                "Не указан note_id. Сначала найди заметку через search_notes или list_notes."
+            )
         note = (await _api_get(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)})).get("note", {})
         return ActionResult.success(
             data={"note_id": note.get("id"), "title": note.get("title"), "content": note.get("content_text", ""),
@@ -129,8 +133,22 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
     """Create a new note."""
     try:
-        title   = params.title
+        title   = params.title.strip()
         content = params.content_text
+
+        # If both title and content are empty, the call is almost certainly
+        # an LLM mistake (it forgot what to write). Fail loud rather than
+        # creating yet another empty note.
+        if not title and not content.strip():
+            return ActionResult.error(
+                "Не указаны ни заголовок, ни текст заметки. "
+                "Передай title и/или content_text."
+            )
+
+        # If the LLM put a folder name into title (observed pattern: title='Работа222'),
+        # it's recoverable but worth a log so we can iterate on system_prompt later.
+        if title and not content.strip():
+            log.info("create_note: empty content, title=%r — possible folder/title confusion", title[:80])
 
         # Title-bleed guard: defend against automation/template bugs where an
         # interpolated title ends up concatenated into the content (observed
@@ -161,6 +179,10 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
 async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     """Update note title, content, tags, or pin."""
     try:
+        if not params.note_id.strip():
+            return ActionResult.error(
+                "Не указан note_id для обновления. Сначала найди заметку через search_notes или list_notes."
+            )
         updates: dict = {}
         if params.title:              updates["title"] = params.title
         if params.content_text:       updates["content_text"] = params.content_text
@@ -182,6 +204,10 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
 async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     """Move note to a folder, or root with empty folder_id."""
     try:
+        if not params.note_id.strip():
+            return ActionResult.error(
+                "Не указан note_id для перемещения. Сначала найди заметку через search_notes или list_notes."
+            )
         data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)},
                                 {"folder_id": params.folder_id if params.folder_id else None})
         target = params.folder_id or "All Notes"
@@ -198,6 +224,10 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
 async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     """Delete a note (moves to trash)."""
     try:
+        if not params.note_id.strip():
+            return ActionResult.error(
+                "Не указан note_id. Сначала найди заметку через search_notes или list_notes."
+            )
         await _api_delete(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx), "permanent": "false"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note moved to trash")
     except Exception as e:
@@ -209,6 +239,10 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     """Permanently delete a note. Cannot be undone."""
     try:
+        if not params.note_id.strip():
+            return ActionResult.error(
+                "Не указан note_id. Сначала найди заметку через search_notes или list_notes."
+            )
         await _api_delete(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx), "permanent": "true"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note permanently deleted")
     except Exception as e:
@@ -227,6 +261,8 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
     """Full-text search across all notes."""
     try:
+        if not params.query.strip():
+            return ActionResult.error("Не указан поисковый запрос. Передай query (или q).")
         resp = await _api_get("/notes/search/fulltext", {
             "user_id":   require_user_id(ctx),
             "tenant_id": _tenant_id(ctx),
