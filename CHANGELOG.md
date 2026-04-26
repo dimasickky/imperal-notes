@@ -6,6 +6,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.4.6] — 2026-04-26
+
+Pin bump only: `imperal-sdk==1.6.2` → `imperal-sdk==2.0.1`. No source changes.
+
+### Why
+
+`imperal-sdk` 2.0.1 (released 2026-04-25 by Valentin) supersedes the rolled-back 2.0.0 by restoring the v1.6.2 contract and shipping two ICNLI Action Authority hotfixes inside the kernel:
+
+- `chat/guards.py` — destructive actions return `ESCALATE` instead of `BLOCK`, mirroring the existing write-action behaviour and deferring to the federal `confirmation_gate` (`I-CHATEXT-DESTRUCTIVE-ESCALATE`).
+- `core/intent.action_plan.args` — JSON-encoded string for OpenAI strict-mode compatibility (`I-ACTION-PLAN-ARGS-JSON-STRING`).
+
+Both hotfixes are kernel-internal; the SDK API surface exposed to extensions is identical to 1.6.2. Per Valentin's release note: *"v1.6.2 extensions upgrade by pin bump only."*
+
+### Changed
+
+- **`requirements.txt`** — `imperal-sdk==1.6.2` → `imperal-sdk==2.0.1`. Equality pin retained as the workspace invariant.
+
+### Not changed
+
+- All Python source, manifest tools list, system_prompt, panels, models, handlers — byte-for-byte identical to 2.4.5. Yesterday's enterprise-quality hardening (AliasChoices + fail-loud guards + AlertTriangle on API failure) stands.
+
+---
+
 ## [2.4.5] — 2026-04-26
 
 Enterprise-grade input hardening: no more raw Pydantic validation traces leaking to chat, no more silent `0` counters when an API call fails. First pass of the `feedback_dimasickky_enterprise_quality` checklist.
