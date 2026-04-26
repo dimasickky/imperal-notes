@@ -6,6 +6,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.4.4] — 2026-04-26
+
+Hotfix on top of 2.4.3 — sidebar showed `0` because the bumped fetch limit hit a notes-api server-side cap.
+
+### Fixed
+
+- **`panels.py` active-notes fetch limit reverted from `1000` to `200`.** notes-api enforces `limit ≤ 200` at the FastAPI query-validator level and returns HTTP 422 for anything higher; `_api_get` raised, the surrounding `try/except` caught it and fell through to the empty-list branch, so `total_count` ended up `0` and the sidebar displayed `0` for every user.
+- **The global "All Notes" counter still reads `total_count` from the response** (the 2.4.3 intent), and that number is correct at any fetch limit — including 200 — because the API computes it server-side from the database, not from the returned page. So users past 200 notes still see the honest total.
+- **Per-folder counters** stay computed from the fetched 200-item array; no folder in current production exceeds 200 notes, so the bucketing remains correct. If that changes, lifting the cap belongs in notes-api, not the panel.
+
+### Why this slipped past 2.4.3
+
+There is no schema-shape test on `_api_get("/notes", {"limit": ...})` against the live notes-api validator; the change was reasoned from a curl test at `limit=1` and a PRD assumption that the cap was 200 at the panel layer, not the API layer. Adding a smoke check against `notes-api/app.py` query bounds before bumping limits anywhere is the lesson.
+
+---
+
 ## [2.4.3] — 2026-04-26
 
 Fix sidebar counters for users past the 200-note threshold. Trash counter likewise.

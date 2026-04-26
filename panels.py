@@ -34,13 +34,13 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
         folders = []
 
     try:
+        # notes-api caps limit at 200 server-side (HTTP 422 above that).
+        # The fetch is for sidebar's per-folder bucketing; the global
+        # counter comes from `total_count` and is honest past 200.
         notes_resp = await _api_get("/notes", {
-            "user_id": uid, "tenant_id": tid, "limit": 1000,
+            "user_id": uid, "tenant_id": tid, "limit": 200,
         }) or {}
         all_notes = notes_resp.get("notes", [])
-        # total_count is the DB-wide count; fall back to fetched array length
-        # for backends that don't report it. Used for the "All Notes" header
-        # so the displayed counter is honest even past the fetch limit.
         total_count = int(notes_resp.get("total_count", len(all_notes)))
     except Exception:
         all_notes = []
