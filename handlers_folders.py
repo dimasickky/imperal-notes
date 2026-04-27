@@ -101,7 +101,7 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
     try:
         target = params.name.strip().lower()
         if not target:
-            return ActionResult.error("Не указано имя папки. Передай name (или title/folder_name).")
+            return ActionResult.error("Folder name is required. Pass name (or title/folder_name).")
 
         folders = (await _api_get("/folders", {
             "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
@@ -138,7 +138,7 @@ async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
     try:
         name = params.name.strip()
         if not name:
-            return ActionResult.error("Не указано имя папки. Передай name (или title/folder_name).")
+            return ActionResult.error("Folder name is required. Pass name (or title/folder_name).")
         folder = (await _api_post("/folders", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
                                                "name": name, "icon": "folder"})).get("folder", {})
         return ActionResult.success(
@@ -156,10 +156,10 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
     try:
         if not params.folder_id.strip():
             return ActionResult.error(
-                "Не указан folder_id. Сначала найди папку через resolve_folder."
+                "Folder id is required. Find one with resolve_folder first."
             )
         if not params.name.strip():
-            return ActionResult.error("Новое имя папки не должно быть пустым.")
+            return ActionResult.error("New folder name must not be empty.")
         await _api_patch(
             f"/folders/{params.folder_id}",
             {"user_id": require_user_id(ctx), "name": params.name},
@@ -180,7 +180,7 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     try:
         if not params.folder_id.strip():
             return ActionResult.error(
-                "Не указан folder_id. Сначала найди папку через resolve_folder."
+                "Folder id is required. Find one with resolve_folder first."
             )
         await _api_delete(f"/folders/{params.folder_id}", {"user_id": require_user_id(ctx)})
         return ActionResult.success(
@@ -214,7 +214,7 @@ async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
     try:
         if not params.note_id.strip():
             return ActionResult.error(
-                "Не указан note_id для восстановления. Сначала найди заметку через list_trash."
+                "Note id is required to restore. Find one with list_trash first."
             )
         data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)}, {"is_archived": False})
         note = data.get("note", {})

@@ -115,7 +115,7 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
         if not params.note_id.strip():
             return ActionResult.error(
-                "Не указан note_id. Сначала найди заметку через search_notes или list_notes."
+                "Note id is required. Find one with search_notes or list_notes first."
             )
         note = (await _api_get(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)})).get("note", {})
         return ActionResult.success(
@@ -141,11 +141,11 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
         # creating yet another empty note.
         if not title and not content.strip():
             return ActionResult.error(
-                "Не указаны ни заголовок, ни текст заметки. "
-                "Передай title и/или content_text."
+                "Note must have a title or content. "
+                "Pass title and/or content_text."
             )
 
-        # If the LLM put a folder name into title (observed pattern: title='Работа222'),
+        # If the LLM put a folder name into title (observed pattern: title set to a folder name),
         # it's recoverable but worth a log so we can iterate on system_prompt later.
         if title and not content.strip():
             log.info("create_note: empty content, title=%r — possible folder/title confusion", title[:80])
@@ -181,7 +181,7 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     try:
         if not params.note_id.strip():
             return ActionResult.error(
-                "Не указан note_id для обновления. Сначала найди заметку через search_notes или list_notes."
+                "Note id is required to update. Find one with search_notes or list_notes first."
             )
         updates: dict = {}
         if params.title:              updates["title"] = params.title
@@ -206,7 +206,7 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     try:
         if not params.note_id.strip():
             return ActionResult.error(
-                "Не указан note_id для перемещения. Сначала найди заметку через search_notes или list_notes."
+                "Note id is required to move. Find one with search_notes or list_notes first."
             )
         data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)},
                                 {"folder_id": params.folder_id if params.folder_id else None})
@@ -226,7 +226,7 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
         if not params.note_id.strip():
             return ActionResult.error(
-                "Не указан note_id. Сначала найди заметку через search_notes или list_notes."
+                "Note id is required. Find one with search_notes or list_notes first."
             )
         await _api_delete(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx), "permanent": "false"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note moved to trash")
@@ -241,7 +241,7 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
         if not params.note_id.strip():
             return ActionResult.error(
-                "Не указан note_id. Сначала найди заметку через search_notes или list_notes."
+                "Note id is required. Find one with search_notes or list_notes first."
             )
         await _api_delete(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx), "permanent": "true"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note permanently deleted")
@@ -262,7 +262,7 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
     """Full-text search across all notes."""
     try:
         if not params.query.strip():
-            return ActionResult.error("Не указан поисковый запрос. Передай query (или q).")
+            return ActionResult.error("Search query is required. Pass query (or q).")
         resp = await _api_get("/notes/search/fulltext", {
             "user_id":   require_user_id(ctx),
             "tenant_id": _tenant_id(ctx),
