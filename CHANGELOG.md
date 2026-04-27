@@ -6,6 +6,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.0] — 2026-04-27
+
+SDK migration: `imperal-sdk==2.0.1` → `imperal-sdk==3.0.0` (Identity Contract Unification, W1).
+
+### Why
+
+SDK 3.0.0 (released 2026-04-27 by Valentin) deletes `imperal_sdk.auth.user.User`, makes `User`/`UserContext` frozen Pydantic v2 models with `extra="forbid"`, and renames `.id` → `.imperal_id` on user objects. There is no alias — `ctx.user.id` raises `AttributeError` on 3.x. Production worker venv was upgraded to 3.0.0 (shared across all extensions on whm-ai-worker), so any 2.x-pinned extension breaks on every panel/skeleton/handler call that reads identity. Migration is mechanical but mandatory.
+
+### Changed
+
+- **`app.py`** — `_user_id(ctx)` and the `on_install` log line read `ctx.user.imperal_id` instead of `ctx.user.id`. `_tenant_id` already used `getattr(ctx.user, "tenant_id", None)` so it's unchanged. `require_user_id` docstring updated to reference `imperal_id`.
+- **`requirements.txt`** — `imperal-sdk==2.0.1` → `imperal-sdk==3.0.0`. Equality pin retained as the workspace invariant.
+
+### Not changed
+
+- All other Python source, manifest, system_prompt, panels, models, handlers — byte-for-byte identical to 2.4.7. Yesterday's `/folders/stats` sidebar fix and the v2.4.x enterprise-quality hardening stand.
+
+---
+
 ## [2.4.7] — 2026-04-27
 
 Sidebar counters больше не упираются в 200. Раньше у юзеров с >200 заметок счётчики папок в sidebar были систематически занижены — панель тянула `/notes?limit=200` (server hard-cap) и считала bucket'ы по этим 200 строкам in-memory. Глобальный сортировщик `is_pinned DESC, updated_at DESC` смещал выборку, поэтому в разрезе папок количество было непредсказуемо неполным.
