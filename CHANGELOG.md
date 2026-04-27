@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.1] — 2026-04-27
+
+User-visible strings flipped to English to match the workspace English-only UI policy.
+
+### Why
+
+The Dimasickky enterprise quality bar was updated 2026-04-27: all user-visible static strings (`ActionResult.error/success` messages, `ui.Empty.message`, `ui.Input` placeholders, `ui.Button` labels, panel headers, footer status, validation errors) live in English. Webbee LLM localizes chat replies to the user's language automatically; static UI does not get ad-hoc translations. The previous "по-русски" directive predated international/federal-grade product positioning and is now retired.
+
+### Changed
+
+- **`handlers_notes.py`** — 6 `ActionResult.error(...)` strings flipped to English (note id required, content/title required, search query required).
+- **`handlers_folders.py`** — 4 `ActionResult.error(...)` strings flipped (folder name required, folder id required, restore note id required, new folder name empty).
+- **`panels.py`** — 2 `ui.Empty(message=...)` flipped (sidebar load failure, trash load failure) plus inline RU comments replaced with English.
+
+### Not changed
+
+- Backend (notes-api), wire contract, SDK pin (`imperal-sdk==3.0.0`), `system_prompt.txt` (Russian phrases there are LLM negative-training corpus, intentional). Handler logic, routing, validation rules — all byte-equivalent to 2.5.0.
+
+---
+
 ## [2.5.0] — 2026-04-27
 
 SDK migration: `imperal-sdk==2.0.1` → `imperal-sdk==3.0.0` (Identity Contract Unification, W1).

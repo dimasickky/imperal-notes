@@ -53,9 +53,9 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
         notes_failed = True
 
     # DB-accurate per-folder counts (independent of the 200-row sidebar fetch).
-    # Until /folders/stats was added, sidebar bucketed in-memory из тех 200
-    # строк → счётчики занижены у юзеров с >200 заметок. Fallback на
-    # in-memory count если endpoint недоступен (старый backend).
+    # Until /folders/stats was added, sidebar bucketed in-memory from those 200
+    # rows → counts were silently undercounted for users with >200 notes.
+    # Fallback to in-memory count if the endpoint is unavailable (older backend).
     stats: dict = {}
     try:
         stats_resp = await _api_get("/folders/stats", {
@@ -108,7 +108,7 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
         # Don't render a misleading "0" counter when the API call failed —
         # show an explicit error state with a refresh hint instead.
         children.append(ui.Empty(
-            message="Не удалось загрузить заметки. Попробуй обновить страницу.",
+            message="Couldn't load notes. Try refreshing the page.",
             icon="AlertTriangle",
         ))
     else:
@@ -236,7 +236,7 @@ async def _append_trash(children: list, uid: str, tid: str) -> None:
     except Exception as e:
         log.warning("sidebar trash: GET /notes is_archived=true failed for user=%s: %s", uid, e)
         children.append(ui.Empty(
-            message="Не удалось загрузить корзину. Попробуй обновить страницу.",
+            message="Couldn't load trash. Try refreshing the page.",
             icon="AlertTriangle",
         ))
         return

@@ -1,6 +1,6 @@
 {
   "app_id": "notes",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "capabilities": ["notes:read", "notes:write"],
   "tools": [
     {
