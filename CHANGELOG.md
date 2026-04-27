@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.4.7] — 2026-04-27
+
+Sidebar counters больше не упираются в 200. Раньше у юзеров с >200 заметок счётчики папок в sidebar были систематически занижены — панель тянула `/notes?limit=200` (server hard-cap) и считала bucket'ы по этим 200 строкам in-memory. Глобальный сортировщик `is_pinned DESC, updated_at DESC` смещал выборку, поэтому в разрезе папок количество было непредсказуемо неполным.
+
+### Fixed
+
+- **`panels.py`** — sidebar теперь читает per-folder counts из нового backend endpoint `GET /folders/stats`, который выдаёт DB-точный `GROUP BY folder_id` за один запрос. Counts для All Notes / Unfiled / каждой папки берутся из этих stats; in-memory bucketing остаётся только как graceful fallback на случай старого backend (capped, как было).
+
+### Backend (notes-api)
+
+- Новый endpoint `GET /folders/stats?user_id=&tenant_id=` (frozen wire contract, чисто аддитивный путь — старые ответы не меняются). Возвращает `{"counts": {"<folder_id>": N, "__unfiled__": M, "__all__": T, "__archived__": K}}`. Один SQL с `SUM(CASE WHEN is_archived=…)` агрегацией.
+- **Bonus fix** — `POST /notes` и `POST /folders` больше не делают `SELECT *` после `INSERT`. Старый паттерн под нагрузкой давал flaky 500 (`fetchone() → None` → `AttributeError`) на ~1 из 11 параллельных insert'ов; вероятно ProxySQL routing INSERT→master / SELECT→replica с лагом. Response теперь собирается из known data + явных `created_at/updated_at` timestamp'ов.
+
+### Not changed
+
+- SDK pin: `imperal-sdk==2.0.1` (без изменений).
+- Wire contract существующих endpoint'ов: byte-for-byte identical.
+
+---
+
 ## [2.4.6] — 2026-04-26
 
 Pin bump only: `imperal-sdk==1.6.2` → `imperal-sdk==2.0.1`. No source changes.

@@ -39,8 +39,8 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
     notes_failed = False
     try:
         # notes-api caps limit at 200 server-side (HTTP 422 above that).
-        # The fetch is for sidebar's per-folder bucketing; the global
-        # counter comes from `total_count` and is honest past 200.
+        # The fetch is for sidebar's note-list rendering; per-folder counts
+        # come from /folders/stats (DB-accurate GROUP BY) below.
         notes_resp = await _api_get("/notes", {
             "user_id": uid, "tenant_id": tid, "limit": 200,
         }) or {}
@@ -51,6 +51,20 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
         all_notes = []
         total_count = 0
         notes_failed = True
+
+    # DB-accurate per-folder counts (independent of the 200-row sidebar fetch).
+    # Until /folders/stats was added, sidebar bucketed in-memory из тех 200
+    # строк → счётчики занижены у юзеров с >200 заметок. Fallback на
+    # in-memory count если endpoint недоступен (старый backend).
+    stats: dict = {}
+    try:
+        stats_resp = await _api_get("/folders/stats", {
+            "user_id": uid, "tenant_id": tid,
+        }) or {}
+        stats = stats_resp.get("counts", {}) or {}
+    except Exception as e:
+        log.warning("sidebar: GET /folders/stats failed for user=%s: %s — "
+                    "falling back to in-memory bucketing (capped at 200)", uid, e)
 
     children: list = []
 
@@ -98,7 +112,7 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
             icon="AlertTriangle",
         ))
     else:
-        _append_folders(children, folders, folder_id, all_notes, total_count)
+        _append_folders(children, folders, folder_id, all_notes, total_count, stats)
         _append_notes(children, all_notes, folder_id, folders, active_note_id)
 
     root = ui.Stack(children=children, gap=2, className="min-h-full")
@@ -116,21 +130,27 @@ def _count_notes_in_folder(notes: list, folder_id: str) -> int:
 
 
 def _append_folders(children: list, folders: list, active_folder: str,
-                    all_notes: list, total: int) -> None:
-    unfiled = sum(1 for n in all_notes if not n.get("folder_id"))
+                    all_notes: list, total: int, stats: dict) -> None:
+    # Prefer DB-accurate stats from /folders/stats (works past 200);
+    # fall back to in-memory counts if backend predates the endpoint.
+    all_count = stats.get("__all__", total)
+    unfiled = stats.get(
+        "__unfiled__",
+        sum(1 for n in all_notes if not n.get("folder_id")),
+    )
 
     items = [
         ui.ListItem(
             id="__all__",
             title="All Notes",
             icon="FileText",
-            meta=str(total),
+            meta=str(all_count),
             selected=(not active_folder or active_folder == "__all__"),
             on_click=ui.Call("__panel__sidebar", folder_id=""),
         ),
     ]
     for f in folders:
-        count = _count_notes_in_folder(all_notes, f["id"])
+        count = stats.get(f["id"], _count_notes_in_folder(all_notes, f["id"]))
         items.append(ui.ListItem(
             id=f["id"],
             title=f["name"],
