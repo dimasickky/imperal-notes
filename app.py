@@ -79,11 +79,11 @@ def _raise_from(resp, path: str) -> None:
 # silently scoping the backend query to "no-user" and returning 0 rows.
 
 def _user_id(ctx) -> str:
-    return ctx.user.id if hasattr(ctx, "user") and ctx.user else ""
+    return ctx.user.imperal_id if hasattr(ctx, "user") and ctx.user else ""
 
 
 def require_user_id(ctx) -> str:
-    """Return ctx.user.id or raise. Use from every @chat.function handler.
+    """Return ctx.user.imperal_id or raise. Use from every @chat.function handler.
 
     When a chain step arrives without ctx.user populated (kernel-side bug
     observed 2026-04-23), a silent "" would scope every backend query to
@@ -100,8 +100,8 @@ def require_user_id(ctx) -> str:
 
 
 def _tenant_id(ctx) -> str:
-    if hasattr(ctx, "user") and ctx.user and hasattr(ctx.user, "tenant_id"):
-        return ctx.user.tenant_id
+    if hasattr(ctx, "user") and ctx.user:
+        return getattr(ctx.user, "tenant_id", None) or "default"
     return "default"
 
 
@@ -133,7 +133,7 @@ SYSTEM_PROMPT = (_Path(__file__).parent / "system_prompt.txt").read_text()
 
 ext = Extension(
     "notes",
-    version="2.4.7",
+    version="2.5.0",
     capabilities=["notes:read", "notes:write"],
 )
 
@@ -160,4 +160,4 @@ async def health(ctx) -> dict:
 
 @ext.on_install
 async def on_install(ctx):
-    log.info(f"notes installed for user {ctx.user.id if ctx and hasattr(ctx, 'user') and ctx.user else 'system'}")
+    log.info(f"notes installed for user {_user_id(ctx) or 'system'}")
