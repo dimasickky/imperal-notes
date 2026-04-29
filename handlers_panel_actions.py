@@ -5,7 +5,7 @@ and return refresh_panels to control which panels update.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app import (
     chat, ActionResult,
@@ -16,11 +16,31 @@ from app import (
 # ─── Models ───────────────────────────────────────────────────────────── #
 
 class NoteSaveParams(BaseModel):
-    """Save a note field from the editor panel."""
-    note_id: str = Field(description="Note UUID")
-    field: str = Field(description="Field to save: title, content, pin")
-    title: str = Field(default="", description="New title (when field=title)")
-    content_text: str = Field(default="", description="HTML content (when field=content)")
+    """Save a note field from the editor panel.
+
+    Although this is fired by the DUI editor panel (`note_save` ui.Call),
+    it is registered as a `@chat.function` and therefore exposed to the
+    LLM tool surface. Aliases keep an LLM-emitted call (`noteId`/`action`/
+    `body`) from leaking a Pydantic stack-trace into chat.
+    """
+    model_config = ConfigDict(populate_by_name=True)
+
+    note_id: str = Field(
+        default="", description="Note UUID. Required.",
+        validation_alias=AliasChoices("note_id", "noteId", "id", "uuid"),
+    )
+    field: str = Field(
+        default="", description="Field to save: title, content, pin",
+        validation_alias=AliasChoices("field", "action", "kind", "type"),
+    )
+    title: str = Field(
+        default="", description="New title (when field=title)",
+        validation_alias=AliasChoices("title", "name", "subject", "heading"),
+    )
+    content_text: str = Field(
+        default="", description="HTML content (when field=content)",
+        validation_alias=AliasChoices("content_text", "content", "body", "text", "html"),
+    )
 
 
 # ─── Handlers ─────────────────────────────────────────────────────────── #
