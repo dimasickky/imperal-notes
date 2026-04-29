@@ -133,10 +133,12 @@ SYSTEM_PROMPT = (_Path(__file__).parent / "system_prompt.txt").read_text()
 
 ext = Extension(
     "notes",
-    version="2.5.1",
+    version="2.5.2",
     capabilities=["notes:read", "notes:write"],
 )
 
+# SDK 3.3+ — `model=` deprecated; LLM resolution moved to kernel ctx-injection
+# (see ctx._llm_configs). Will be hard-removed in SDK 4.0.
 chat = ChatExtension(
     ext=ext,
     tool_name="tool_notes_chat",
@@ -145,7 +147,6 @@ chat = ChatExtension(
         "organize notes with folders and tags, move notes, manage trash"
     ),
     system_prompt=SYSTEM_PROMPT,
-    model="claude-haiku-4-5-20251001",
 )
 
 @ext.health_check
@@ -155,7 +156,8 @@ async def health(ctx) -> dict:
         if not r.ok:
             return {"status": "degraded", "version": ext.version, "api": "unreachable"}
         return {"status": "ok", "version": ext.version, "api": "reachable"}
-    except Exception:
+    except Exception as exc:
+        log.warning("notes health check failed: %s", exc)
         return {"status": "degraded", "version": ext.version, "api": "unreachable"}
 
 @ext.on_install

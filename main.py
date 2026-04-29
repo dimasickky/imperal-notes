@@ -1,4 +1,4 @@
-"""Notes v2.4.0 · Personal notes with AI assistant + DUI panels."""
+"""Notes · entrypoint."""
 from __future__ import annotations
 
 import sys, os

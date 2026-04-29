@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 # Notes-api caps `limit` at 200 via FastAPI `Query(le=200)`. Keep the extension
@@ -25,6 +25,20 @@ MAX_NOTES_PER_PAGE = 200
 
 
 _MODEL_CONFIG = ConfigDict(populate_by_name=True)
+
+
+def _coerce_tags(v):
+    """Accept ``["a","b"]`` (canonical), ``"a,b"``, ``"a, b"``, or ``"a"``.
+
+    LLMs occasionally emit a single string for list-shaped params. Without
+    this coercion Pydantic raises ``list_type`` and the user sees a stack
+    trace in chat. Empty strings collapse to ``[]``.
+    """
+    if v is None:
+        return []
+    if isinstance(v, str):
+        return [t.strip() for t in v.split(",") if t.strip()]
+    return v
 
 
 class ListNotesParams(BaseModel):
@@ -53,6 +67,8 @@ class ListNotesParams(BaseModel):
         description="Filter by tag names (AND-match: a note must have all listed tags).",
         validation_alias=AliasChoices("tags", "labels"),
     )
+
+    _coerce_tags = field_validator("tags", mode="before")(_coerce_tags)
 
 
 class NoteIdParams(BaseModel):
@@ -98,6 +114,8 @@ class CreateNoteParams(BaseModel):
         validation_alias=AliasChoices("folder_id", "folder", "folderId"),
     )
 
+    _coerce_tags = field_validator("tags", mode="before")(_coerce_tags)
+
 
 class UpdateNoteParams(BaseModel):
     """Update an existing note."""
@@ -123,6 +141,17 @@ class UpdateNoteParams(BaseModel):
         default=None, description="Pin status (omit to keep).",
         validation_alias=AliasChoices("is_pinned", "pinned", "pin"),
     )
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _coerce_tags_optional(cls, v):
+        # Same coercion as the elsewhere helper, but `None` stays `None`
+        # because UpdateNoteParams treats omitted `tags` as "keep existing".
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return [t.strip() for t in v.split(",") if t.strip()]
+        return v
 
 
 class MoveNoteParams(BaseModel):

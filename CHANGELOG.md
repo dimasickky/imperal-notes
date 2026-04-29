@@ -6,6 +6,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.2] — 2026-04-29
+
+Architecture audit pass: rename_folder fix + LLM-input hardening on the panel-action handler + SDK 3.3 deprecation cleanup.
+
+### Fixed (P1)
+
+- **`handlers_folders.py`** — `fn_rename_folder` previously sent the new name in the **query string** (`?name=…`) and an empty body to notes-api PATCH. Body-driven update path saw nothing to change and the rename silently no-op'd. Moved `name` into the JSON body, query string now only carries `user_id`. Matches the pattern used by every other PATCH call in the file.
+
+### Fixed (P2)
+
+- **`handlers_panel_actions.py`** — `NoteSaveParams` now declares `validation_alias=AliasChoices(...)` on `note_id` / `field` / `title` / `content_text`, plus `model_config = ConfigDict(populate_by_name=True)`. Although the handler is invoked by the DUI editor's `ui.Call("note_save", ...)`, it is registered as `@chat.function` and therefore exposed to LLM tool surface; the previous shape would raise `VALIDATION_MISSING_FIELD` into chat on `noteId`/`action`/`body` calls.
+- **`models_notes.py`** — `tags` field on `ListNotesParams`, `CreateNoteParams`, and `UpdateNoteParams` accepts a comma-separated string from the LLM in addition to a list (`"work,personal"` → `["work","personal"]`). LLMs occasionally serialize lists as strings; without coercion Pydantic raised `list_type` straight into chat.
+- **`app.py`** — `ChatExtension(model="claude-haiku-4-5-20251001")` removed (deprecated since SDK 3.3.0). LLM model resolution now flows through kernel ctx-injection (`ctx._llm_configs`); the parameter will hard-error in SDK 4.0.
+- **`app.py`** — health-check `except: pass`-style fallback now `log.warning(exc)` so probe failures show in the worker log, per the Dimasickky enterprise quality bar.
+- **`main.py`** — module docstring no longer carries a stale `v2.4.0` version; entrypoint stays version-free, source of truth is `Extension(version=…)`.
+
+### Compatibility
+
+- SDK pin unchanged (`imperal-sdk==3.0.0`). 3.4.0 panel-slot validator (`slot="main"` → `ValueError`) does not affect this extension — `panels.py` already declares `slot="left"` and `panels_editor.py` `slot="center"`, both on the new whitelist.
+- Wire contract with notes-api unchanged. The `rename_folder` body shape was always the documented contract; pre-2.5.2 the extension just wasn't using it correctly.
+
+---
+
 ## [2.5.1] — 2026-04-27
 
 User-visible strings flipped to English to match the workspace English-only UI policy.
