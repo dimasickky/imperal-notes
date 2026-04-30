@@ -128,15 +128,23 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     archive_icon  = "ArchiveRestore" if is_archived else "Archive"
     archive_field = "unarchive" if is_archived else "archive"
 
+    more_menu = ui.Menu(
+        items=[
+            {"label": "Duplicate",       "icon": "Copy",           "on_click": ui.Call("duplicate_note",   note_id=note_id)},
+            {"label": "Export Markdown", "icon": "FileDown",       "on_click": ui.Call("export_markdown",  note_id=note_id)},
+            {"separator": True},
+            {"label": archive_label,     "icon": archive_icon,     "on_click": ui.Call("note_save", note_id=note_id, field=archive_field)},
+            {"label": "Delete",          "icon": "Trash2",         "on_click": ui.Call("delete_note",      note_id=note_id)},
+        ],
+        trigger=ui.Button("", icon="MoreHorizontal", variant="ghost", size="sm"),
+    )
+
     action_bar = ui.Stack([
         ui.Button("Back", icon="ArrowLeft", variant="ghost", size="sm",
                   on_click=ui.Call("__panel__sidebar")),
         ui.Button(pin_label, icon=pin_icon, variant="outline", size="sm",
                   on_click=ui.Call("note_save", note_id=note_id, field="pin")),
-        ui.Button(archive_label, icon=archive_icon, variant="outline", size="sm",
-                  on_click=ui.Call("note_save", note_id=note_id, field=archive_field)),
-        ui.Button("Delete", icon="Trash2", variant="destructive", size="sm",
-                  on_click=ui.Call("delete_note", note_id=note_id)),
+        more_menu,
     ], direction="horizontal", wrap=True, sticky=True)
 
     # ── Title input ───────────────────────────────────────────────────
