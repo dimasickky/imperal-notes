@@ -201,7 +201,7 @@ async def fn_list_trash(ctx) -> ActionResult:
     """List all notes in trash."""
     try:
         notes = (await _api_get("/notes", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
-                                           "is_archived": True, "limit": 50})).get("notes", [])
+                                           "is_trashed": True, "limit": 50})).get("notes", [])
         return ActionResult.success(
             data={"trash_notes": [{"note_id": n["id"], "title": n["title"], "word_count": n.get("word_count", 0),
                                    "tags": n.get("tags", [])} for n in notes], "total": len(notes)},
