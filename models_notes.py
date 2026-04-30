@@ -19,9 +19,9 @@ from typing import Optional
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
-# Notes-api caps `limit` at 200 via FastAPI `Query(le=200)`. Keep the extension
-# aligned so the LLM can't ask for 500 and blow up with a raw 422.
+# List endpoint caps at 200; search endpoint caps at 50 (FULLTEXT cost).
 MAX_NOTES_PER_PAGE = 200
+MAX_SEARCH_PER_PAGE = 50
 
 
 _MODEL_CONFIG = ConfigDict(populate_by_name=True)
@@ -178,8 +178,8 @@ class SearchNotesParams(BaseModel):
         validation_alias=AliasChoices("query", "q", "search", "text"),
     )
     limit: int  = Field(
-        default=20, ge=1, le=MAX_NOTES_PER_PAGE,
-        description=f"Max results per page (1-{MAX_NOTES_PER_PAGE}). Use offset to paginate.",
+        default=20, ge=1, le=MAX_SEARCH_PER_PAGE,
+        description=f"Max results per page (1-{MAX_SEARCH_PER_PAGE}). Use offset to paginate.",
         validation_alias=AliasChoices("limit", "page_size", "per_page"),
     )
     offset: int = Field(

@@ -10,6 +10,7 @@ from app import chat, ActionResult, _api_get, _api_patch, _api_post, _api_delete
 log = logging.getLogger("notes.handlers")
 from models_notes import (
     MAX_NOTES_PER_PAGE,
+    MAX_SEARCH_PER_PAGE,
     CreateNoteParams,
     ListNotesParams,
     MoveNoteParams,
@@ -253,7 +254,7 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     "search_notes", action_type="read",
     description=(
         "Full-text search across all notes (paginated). Returns up to `limit` "
-        f"results per call (max {MAX_NOTES_PER_PAGE}). If `has_more` is true, "
+        f"results per call (max {MAX_SEARCH_PER_PAGE}). If `has_more` is true, "
         "call again with `offset=offset+limit` to fetch the next page. "
         "Do NOT claim to have searched all notes until `has_more` is false."
     ),

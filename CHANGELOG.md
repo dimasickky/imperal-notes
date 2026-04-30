@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.8] — 2026-04-30
+
+### Fixed
+
+- **Search pagination** — `GET /notes/search/fulltext` now supports `offset` parameter and returns `total_count` (DB-accurate, via COUNT(*)) instead of the previous `total: len(results)` which was always the page size. Extension correctly uses `total_count` to compute `has_more` and `next_offset`.
+- **Search limit cap** — `SearchNotesParams.limit` max corrected from 200 → 50 to match the backend FULLTEXT cap. Added `MAX_SEARCH_PER_PAGE = 50` constant alongside existing `MAX_NOTES_PER_PAGE = 200`.
+
+---
+
 ## [2.5.7] — 2026-04-30
 
 ### Added
