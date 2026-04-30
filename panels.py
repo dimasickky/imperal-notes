@@ -291,7 +291,7 @@ async def _append_trash(children: list, uid: str, tid: str) -> None:
     try:
         trash = (await _api_get("/notes", {
             "user_id": uid, "tenant_id": tid,
-            "is_trashed": True, "is_archived": None, "limit": 200,
+            "is_trashed": True, "limit": 200,
         })).get("notes", [])
     except Exception as e:
         log.warning("sidebar trash: GET /notes is_archived=true failed for user=%s: %s", uid, e)
