@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.6.0] — 2026-04-30
+
+### Added
+
+- **⋮ Menu in editor action bar** — replaces standalone Archive/Delete buttons with a `ui.Menu` dropdown: Duplicate, Export Markdown, separator, Archive/Unarchive, Delete. Pin button stays standalone.
+- **Duplicate note** — `duplicate_note` handler copies title, content, folder, and tags into a new note; refreshes the sidebar.
+- **Export Markdown** — `export_markdown` handler converts note HTML→Markdown via `html2text`, returns `ui.Code` block with the result.
+- **`handlers_export.py`** — new file for duplicate and export handlers.
+- **`html2text>=2024.0.0`** — added to `requirements.txt`.
+
+---
+
 ## [2.5.9] — 2026-04-30
 
 ### Added
