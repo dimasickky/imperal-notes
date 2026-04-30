@@ -45,6 +45,10 @@ class NoteSaveParams(BaseModel):
         default_factory=list, description="Tag list (when field=tags)",
         validation_alias=AliasChoices("tags", "tag_list", "labels"),
     )
+    folder_id: str = Field(
+        default="", description="Folder UUID or empty string to remove (when field=folder)",
+        validation_alias=AliasChoices("folder_id", "folderId", "folder"),
+    )
 
 
 # ─── Handlers ─────────────────────────────────────────────────────────── #
@@ -96,6 +100,19 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
                 data={"note_id": params.note_id, "saved": "tags",
                       "refresh_panels": ["sidebar"]},
                 summary="Tags saved",
+            )
+
+        if params.field == "folder":
+            new_folder = params.folder_id if params.folder_id else None
+            await _api_patch(
+                f"/notes/{params.note_id}",
+                {"user_id": uid},
+                {"folder_id": new_folder},
+            )
+            return ActionResult.success(
+                data={"note_id": params.note_id, "saved": "folder",
+                      "refresh_panels": ["sidebar"]},
+                summary="Folder updated",
             )
 
         if params.field == "pin":

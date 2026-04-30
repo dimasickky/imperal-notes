@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.6] — 2026-04-30
+
+### Added
+
+- **Folder selector** — `ui.Select` in the editor panel lets users move a note to a different folder without leaving the editor. Options are fetched from `GET /folders`, includes "No folder" to remove from any folder. Changes auto-save via `note_save(field="folder")` and refresh the sidebar.
+- **`fn_note_save` field="folder"** — new save path in `handlers_panel_actions.py`; PATCHes `/notes/{id}` with the new `folder_id` (or `None` to unset).
+
+---
+
 ## [2.5.5] — 2026-04-30
 
 ### Added

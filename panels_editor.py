@@ -99,6 +99,12 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     except Exception:
         all_tags = []
 
+    try:
+        folders_data = await _api_get("/folders", {"user_id": uid, "tenant_id": tid})
+        folders = folders_data.get("folders", [])
+    except Exception:
+        folders = []
+
     # ── Action bar (sticky) ───────────────────────────────────────────
     pin_label = "Unpin" if is_pinned else "Pin"
     pin_icon = "PinOff" if is_pinned else "Pin"
@@ -122,6 +128,18 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     )
 
     # ── Metadata (KeyValue for clean display) ─────────────────────────
+    current_folder_id = note.get("folder_id") or ""
+    folder_options = [{"label": "No folder", "value": ""}] + [
+        {"label": f["name"], "value": f["id"]} for f in folders
+    ]
+    folder_select = ui.Select(
+        options=folder_options,
+        value=current_folder_id,
+        placeholder="Move to folder...",
+        param_name="folder_id",
+        on_change=ui.Call("note_save", note_id=note_id, field="folder"),
+    )
+
     meta_pairs = []
     if word_count:
         meta_pairs.append({"key": "Words", "value": str(word_count)})
@@ -148,7 +166,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         on_change=ui.Call("note_save", note_id=note_id, field="content"),
     )
 
-    children = [action_bar, title_input]
+    children = [action_bar, title_input, folder_select]
     if meta_pairs:
         children.append(ui.KeyValue(meta_pairs))
     children.append(tag_input)
