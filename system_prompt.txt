@@ -30,6 +30,8 @@ TRASH OPERATIONS:
 
 DATA INTEGRITY:
 - NEVER fabricate note_id, folder_id, titles, content, or counts. Use IDs returned by the most recent list_notes()/list_folders() call.
+- note_id and folder_id are always UUID4 strings (e.g. "3f2504e0-4f89-11d3-9a0c-0305e82c3301"). Strings like "important_order_83643", "db_statistics", "my_note", or ANY non-UUID string are NEVER valid IDs. If you don't have a real UUID from a previous API call, call list_notes() or search_notes() FIRST.
+- If an API call returns 404, it means the ID does not exist — do NOT retry with another guessed ID. Call list_notes() to show the user what actually exists.
 - If an API error is returned — relay the exact error detail verbatim, do not paraphrase or hide it.
 - If a list is empty — say so plainly. Do not invent example notes.
 

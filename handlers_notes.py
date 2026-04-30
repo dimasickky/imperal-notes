@@ -2,8 +2,27 @@
 from __future__ import annotations
 
 import logging
+import re
 
 import httpx
+
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    re.IGNORECASE,
+)
+
+
+def _bad_id(note_id: str) -> str | None:
+    """Return error message if note_id is not a valid UUID4, else None."""
+    if not note_id or not note_id.strip():
+        return "note_id is required. Call list_notes() or search_notes() first to get real IDs."
+    if not _UUID_RE.match(note_id.strip()):
+        return (
+            f"'{note_id}' is not a valid note ID. Note IDs are UUID4 strings "
+            "(e.g. '3f2504e0-4f89-11d3-9a0c-0305e82c3301'). "
+            "Call list_notes() or search_notes() first to get real IDs — never guess them."
+        )
+    return None
 
 from app import chat, ActionResult, _api_get, _api_patch, _api_post, _api_delete, require_user_id, _tenant_id
 
@@ -114,10 +133,8 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
 async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     """Get full content of a note by ID."""
     try:
-        if not params.note_id.strip():
-            return ActionResult.error(
-                "Note id is required. Find one with search_notes or list_notes first."
-            )
+        if err := _bad_id(params.note_id):
+            return ActionResult.error(err)
         note = (await _api_get(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)})).get("note", {})
         return ActionResult.success(
             data={"note_id": note.get("id"), "title": note.get("title"), "content": note.get("content_text", ""),
@@ -180,10 +197,8 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
 async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     """Update note title, content, tags, or pin."""
     try:
-        if not params.note_id.strip():
-            return ActionResult.error(
-                "Note id is required to update. Find one with search_notes or list_notes first."
-            )
+        if err := _bad_id(params.note_id):
+            return ActionResult.error(err)
         updates: dict = {}
         if params.title:              updates["title"] = params.title
         if params.content_text:       updates["content_text"] = params.content_text
@@ -205,10 +220,8 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
 async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     """Move note to a folder, or root with empty folder_id."""
     try:
-        if not params.note_id.strip():
-            return ActionResult.error(
-                "Note id is required to move. Find one with search_notes or list_notes first."
-            )
+        if err := _bad_id(params.note_id):
+            return ActionResult.error(err)
         data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)},
                                 {"folder_id": params.folder_id if params.folder_id else None})
         target = params.folder_id or "All Notes"
@@ -225,10 +238,8 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
 async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     """Delete a note (moves to trash)."""
     try:
-        if not params.note_id.strip():
-            return ActionResult.error(
-                "Note id is required. Find one with search_notes or list_notes first."
-            )
+        if err := _bad_id(params.note_id):
+            return ActionResult.error(err)
         await _api_delete(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx), "permanent": "false"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note moved to trash")
     except Exception as e:
@@ -240,10 +251,8 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     """Permanently delete a note. Cannot be undone."""
     try:
-        if not params.note_id.strip():
-            return ActionResult.error(
-                "Note id is required. Find one with search_notes or list_notes first."
-            )
+        if err := _bad_id(params.note_id):
+            return ActionResult.error(err)
         await _api_delete(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx), "permanent": "true"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note permanently deleted")
     except Exception as e:
