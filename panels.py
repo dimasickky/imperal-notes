@@ -43,7 +43,8 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
         # The fetch is for sidebar's note-list rendering; per-folder counts
         # come from /folders/stats (DB-accurate GROUP BY) below.
         notes_resp = await _api_get("/notes", {
-            "user_id": uid, "tenant_id": tid, "limit": 200,
+            "user_id": uid, "tenant_id": tid,
+            "is_archived": False, "is_trashed": False, "limit": 200,
         }) or {}
         all_notes = notes_resp.get("notes", [])
         total_count = int(notes_resp.get("total_count", len(all_notes)))
@@ -110,13 +111,13 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
     if view == "archived":
         children.append(ui.Button(
             "Back to Notes", icon="ArrowLeft", variant="ghost", size="sm",
-            on_click=ui.Call("__panel__sidebar"),
+            on_click=ui.Call("__panel__sidebar", view=""),
         ))
         await _append_archived(children, uid, tid)
     elif view == "trash":
         children.append(ui.Button(
             "Back to Notes", icon="ArrowLeft", variant="ghost", size="sm",
-            on_click=ui.Call("__panel__sidebar"),
+            on_click=ui.Call("__panel__sidebar", view=""),
         ))
         await _append_trash(children, uid, tid)
     elif notes_failed or folders_failed:
@@ -246,7 +247,7 @@ async def _append_archived(children: list, uid: str, tid: str) -> None:
     try:
         resp = (await _api_get("/notes", {
             "user_id": uid, "tenant_id": tid,
-            "is_archived": True, "limit": 200,
+            "is_archived": True, "is_trashed": False, "limit": 200,
         }))
         archived = resp.get("notes", [])
     except Exception as e:
@@ -290,7 +291,7 @@ async def _append_trash(children: list, uid: str, tid: str) -> None:
     try:
         trash = (await _api_get("/notes", {
             "user_id": uid, "tenant_id": tid,
-            "is_archived": True, "limit": 200,
+            "is_trashed": True, "is_archived": None, "limit": 200,
         })).get("notes", [])
     except Exception as e:
         log.warning("sidebar trash: GET /notes is_archived=true failed for user=%s: %s", uid, e)

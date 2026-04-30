@@ -84,12 +84,12 @@ async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
             data={
                 "title":    title,
                 "markdown": markdown,
-                "ui":       ui.Stack([
-                    ui.Text(f"**{title}**"),
+                "ui": ui.Stack([
+                    ui.Text(f"Export: **{title}.md** — select all and copy to save as a file."),
                     ui.Code(markdown, language="markdown"),
                 ]),
             },
-            summary=f"Exported '{title}' as Markdown",
+            summary=f"Exported '{title}' as Markdown (copy from the code block to save as .md)",
         )
     except Exception as e:
         return ActionResult.error(f"Export failed: {e}")

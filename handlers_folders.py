@@ -219,7 +219,7 @@ async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
             return ActionResult.error(
                 "Note id is required to restore. Find one with list_trash first."
             )
-        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)}, {"is_archived": False})
+        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)}, {"is_trashed": False})
         note = data.get("note", {})
         return ActionResult.success(
             data={"note_id": params.note_id, "title": note.get("title", ""), "folder_id": note.get("folder_id")},

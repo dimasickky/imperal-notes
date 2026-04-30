@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.6.1] — 2026-04-30
+
+### Fixed
+
+- **Archive ≠ Trash** — `is_trashed` column added to DB (migration `001_add_is_trashed.sql`). Soft-delete (trash) now uses `is_trashed=TRUE`; `is_archived` is a separate flag for the Archive feature. Trash and Archived views now show different notes.
+- **"Back to Notes" button** — passes `view=""` explicitly; platform was preserving previous view state without it.
+- **Tag search** — backend `GET /notes` now accepts `tags=a,b` query param with `JSON_CONTAINS` per-tag filtering. Client-side fallback (capped at 200) removed.
+- **Export Markdown** — `ui.Code` block with copy hint replaces the previous silent no-op. Browser file download not available from within DUI platform.
+- **Restore from trash** — `restore_note` now patches `is_trashed=False` (was `is_archived=False`).
+
+---
+
 ## [2.6.0] — 2026-04-30
 
 ### Added
