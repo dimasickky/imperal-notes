@@ -6,6 +6,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.4] — 2026-04-30
+
+### Fixed
+
+- **`handlers_folders.py`** — `fn_rename_folder` was sending `name` in the JSON body (2.5.2 regression). `notes-api PATCH /folders/{id}` reads `name` as a Query parameter, not from the request body — so the body-driven path saw nothing to change and silently no-op'd. Moved `name` back to the query string; body is now empty `{}` as the API expects.
+- **`requirements.txt`** — SDK pin bumped `==3.4.1` → `==3.5.0` to match the actual worker venv (`/home/imperal-platform-worker/venv`). Discrepancy was a deployment drift risk.
+
+---
+
+## [2.5.3] — 2026-04-29
+
+### Changed
+
+- **`requirements.txt`** — bump `imperal-sdk==3.0.0` → `==3.4.1`. Pulls in the LLM-FU-1/FU-2 stack (gpt-5 / o-series `max_completion_tokens` rename + `temperature` drop) so chains routed through reasoning models stop falling over to `anthropic/haiku`. No source changes — extension code already complies with the 3.x surface (3.3.0 `ChatExtension(model=)` removal done in 2.5.2; 3.4.0 panel-slot whitelist already met by `panels.py` `slot="left"` + `panels_editor.py` `slot="center"`).
+
+---
+
 ## [2.5.2] — 2026-04-29
 
 Architecture audit pass: rename_folder fix + LLM-input hardening on the panel-action handler + SDK 3.3 deprecation cleanup.
