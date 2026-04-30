@@ -41,6 +41,10 @@ class NoteSaveParams(BaseModel):
         default="", description="HTML content (when field=content)",
         validation_alias=AliasChoices("content_text", "content", "body", "text", "html"),
     )
+    tags: list[str] = Field(
+        default_factory=list, description="Tag list (when field=tags)",
+        validation_alias=AliasChoices("tags", "tag_list", "labels"),
+    )
 
 
 # ─── Handlers ─────────────────────────────────────────────────────────── #
@@ -80,6 +84,18 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
                 data={"note_id": params.note_id, "saved": "content",
                       "refresh_panels": []},
                 summary="Saved",
+            )
+
+        if params.field == "tags":
+            await _api_patch(
+                f"/notes/{params.note_id}",
+                {"user_id": uid},
+                {"tags": params.tags},
+            )
+            return ActionResult.success(
+                data={"note_id": params.note_id, "saved": "tags",
+                      "refresh_panels": ["sidebar"]},
+                summary="Tags saved",
             )
 
         if params.field == "pin":

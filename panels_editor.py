@@ -93,6 +93,12 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     created = _format_date(note.get("created_at", ""))
     updated = _format_date(note.get("updated_at", ""))
 
+    try:
+        tags_data = await _api_get("/notes/tags", {"user_id": uid, "tenant_id": tid})
+        all_tags = tags_data.get("tags", [])
+    except Exception:
+        all_tags = []
+
     # ── Action bar (sticky) ───────────────────────────────────────────
     pin_label = "Unpin" if is_pinned else "Pin"
     pin_icon = "PinOff" if is_pinned else "Pin"
@@ -123,9 +129,15 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         meta_pairs.append({"key": "Created", "value": created})
     if updated:
         meta_pairs.append({"key": "Modified", "value": updated})
-    if tags:
-        meta_pairs.append({"key": "Tags", "value": " ".join(f"#{t}" for t in tags[:5])})
     meta_pairs.append({"key": "ID", "value": note_id[:12] + "..."})
+
+    tag_input = ui.TagInput(
+        values=tags,
+        suggestions=all_tags,
+        placeholder="Add tags...",
+        param_name="tags",
+        on_change=ui.Call("note_save", note_id=note_id, field="tags"),
+    )
 
     # ── Rich Editor (auto-save on change, Ctrl+S explicit save) ───────
     editor = ui.RichEditor(
@@ -139,6 +151,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     children = [action_bar, title_input]
     if meta_pairs:
         children.append(ui.KeyValue(meta_pairs))
+    children.append(tag_input)
     children.append(editor)
 
     return ui.Stack(children=children, gap=2, className="px-4 pb-4")

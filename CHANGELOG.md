@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.5] — 2026-04-30
+
+### Added
+
+- **Tags editing** — `ui.TagInput` in the editor panel replaces the read-only `KeyValue("Tags: #a #b")` display. Tags are now editable inline with autocomplete suggestions sourced from all tags the user has used across their notes. Changes auto-save via `note_save(field="tags")`.
+- **`GET /notes/tags` backend endpoint** — new `notes-api` route returns all unique tags for a user across active (non-archived) notes; used by the editor for tag suggestions.
+- **`fn_note_save` field="tags"** — new save path in `handlers_panel_actions.py`; PATCHes `/notes/{id}` with the updated tag list and refreshes the sidebar.
+
+---
+
 ## [2.5.4] — 2026-04-30
 
 ### Fixed
