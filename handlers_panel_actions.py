@@ -120,7 +120,7 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
             await _api_patch(
                 f"/notes/{params.note_id}",
                 {"user_id": uid},
-                {"is_archived": is_archived},
+                {"is_archived": is_archived, "is_trashed": False},
             )
             label = "archived" if is_archived else "restored"
             return ActionResult.success(

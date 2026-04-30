@@ -144,7 +144,7 @@ SYSTEM_PROMPT = (_Path(__file__).parent / "system_prompt.txt").read_text()
 
 ext = Extension(
     "notes",
-    version="2.5.9",
+    version="2.6.1",
     capabilities=["notes:read", "notes:write"],
 )
 
