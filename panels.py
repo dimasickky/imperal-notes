@@ -20,7 +20,8 @@ log = logging.getLogger("notes")
         "on_event:"
         "notes.created,notes.updated,notes.deleted,notes.moved,"
         "notes.restored,notes.permanently_deleted,notes.emptied,"
-        "notes.folder_created,notes.folder_renamed,notes.folder_deleted"
+        "notes.folder_created,notes.folder_renamed,notes.folder_deleted,"
+        "notes.archived,notes.unarchived"
     ),
 )
 async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
@@ -68,7 +69,8 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
 
     children: list = []
 
-    trash_variant = "secondary" if view == "trash" else "ghost"
+    trash_variant    = "secondary" if view == "trash"    else "ghost"
+    archive_variant  = "secondary" if view == "archived" else "ghost"
     new_folder_variant = "secondary" if view == "new_folder" else "ghost"
     children.append(ui.Stack([
         ui.Button("New Note", icon="Plus", variant="primary", size="sm",
@@ -77,6 +79,9 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
                   on_click=ui.Call("__panel__sidebar",
                                   view="notes" if view == "new_folder" else "new_folder",
                                   folder_id=folder_id)),
+        ui.Button("Archived", icon="Archive", variant=archive_variant, size="sm",
+                  on_click=ui.Call("__panel__sidebar",
+                                   view="notes" if view == "archived" else "archived")),
         ui.Button("Trash", icon="Trash2", variant=trash_variant, size="sm",
                   on_click=ui.Call("__panel__sidebar",
                                   view="notes" if view == "trash" else "trash")),
@@ -102,7 +107,17 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
                              name="{{value}}"),
         ))
 
-    if view == "trash":
+    if view == "archived":
+        children.append(ui.Button(
+            "Back to Notes", icon="ArrowLeft", variant="ghost", size="sm",
+            on_click=ui.Call("__panel__sidebar"),
+        ))
+        await _append_archived(children, uid, tid)
+    elif view == "trash":
+        children.append(ui.Button(
+            "Back to Notes", icon="ArrowLeft", variant="ghost", size="sm",
+            on_click=ui.Call("__panel__sidebar"),
+        ))
         await _append_trash(children, uid, tid)
     elif notes_failed or folders_failed:
         # Don't render a misleading "0" counter when the API call failed —
@@ -225,6 +240,50 @@ def _append_notes(children: list, all_notes: list, folder_id: str,
 
     children.append(ui.Divider(f"Notes ({len(items)})"))
     children.append(ui.List(items=items, searchable=True, page_size=20))
+
+
+async def _append_archived(children: list, uid: str, tid: str) -> None:
+    try:
+        resp = (await _api_get("/notes", {
+            "user_id": uid, "tenant_id": tid,
+            "is_archived": True, "limit": 200,
+        }))
+        archived = resp.get("notes", [])
+    except Exception as e:
+        log.warning("sidebar archived: GET /notes is_archived=true failed for user=%s: %s", uid, e)
+        children.append(ui.Empty(
+            message="Couldn't load archived notes. Try refreshing.",
+            icon="AlertTriangle",
+        ))
+        return
+
+    if not archived:
+        children.append(ui.Empty(message="No archived notes", icon="Archive"))
+        return
+
+    items = []
+    for n in archived:
+        items.append(ui.ListItem(
+            id=n["id"],
+            title=n.get("title", "Untitled"),
+            subtitle=f"{n.get('word_count', 0)} words",
+            icon="Archive",
+            on_click=ui.Call("__panel__editor", note_id=n["id"]),
+            actions=[
+                {
+                    "icon": "ArchiveRestore",
+                    "on_click": ui.Call("note_save", note_id=n["id"], field="unarchive"),
+                },
+                {
+                    "icon": "Trash2",
+                    "on_click": ui.Call("delete_note", note_id=n["id"]),
+                    "confirm": f"Move '{n.get('title', 'Untitled')}' to trash?",
+                },
+            ],
+        ))
+
+    children.append(ui.Divider(f"Archived ({len(archived)})"))
+    children.append(ui.List(items=items))
 
 
 async def _append_trash(children: list, uid: str, tid: str) -> None:

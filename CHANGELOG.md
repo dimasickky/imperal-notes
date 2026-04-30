@@ -6,6 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.9] — 2026-04-30
+
+### Added
+
+- **Archive tab** — new "Archived" button in the sidebar toolbar opens a dedicated view of all archived notes with Unarchive / Delete actions. Sidebar refreshes on `notes.archived` and `notes.unarchived` events.
+- **Archive/Unarchive button** in the editor action bar — toggles between "Archive" and "Unarchive" depending on the note's current state.
+- **`fn_note_save` field="archive"/"unarchive"** — PATCHes `is_archived` boolean and refreshes the sidebar.
+
+### Fixed
+
+- **Trash "Back" button** — added explicit "← Back to Notes" button at the top of the trash view (toggling the "Trash" button was not obvious enough as a way to exit).
+
+---
+
 ## [2.5.8] — 2026-04-30
 
 ### Fixed

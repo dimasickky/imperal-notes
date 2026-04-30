@@ -115,6 +115,20 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
                 summary="Folder updated",
             )
 
+        if params.field in ("archive", "unarchive"):
+            is_archived = params.field == "archive"
+            await _api_patch(
+                f"/notes/{params.note_id}",
+                {"user_id": uid},
+                {"is_archived": is_archived},
+            )
+            label = "archived" if is_archived else "restored"
+            return ActionResult.success(
+                data={"note_id": params.note_id, "saved": params.field,
+                      "refresh_panels": ["sidebar"]},
+                summary=f"Note {label}",
+            )
+
         if params.field == "pin":
             note_data = await _api_get(
                 f"/notes/{params.note_id}", {"user_id": uid},

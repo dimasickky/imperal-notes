@@ -97,6 +97,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     content_html = _prepare_content(note)
     word_count = note.get("word_count", 0)
     is_pinned = note.get("is_pinned", False)
+    is_archived = note.get("is_archived", False)
     tags = note.get("tags", [])
     created = _format_date(note.get("created_at", ""))
     updated = _format_date(note.get("updated_at", ""))
@@ -123,12 +124,17 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     pin_label = "Unpin" if is_pinned else "Pin"
     pin_icon = "PinOff" if is_pinned else "Pin"
 
+    archive_label = "Unarchive" if is_archived else "Archive"
+    archive_icon  = "ArchiveRestore" if is_archived else "Archive"
+    archive_field = "unarchive" if is_archived else "archive"
+
     action_bar = ui.Stack([
         ui.Button("Back", icon="ArrowLeft", variant="ghost", size="sm",
                   on_click=ui.Call("__panel__sidebar")),
         ui.Button(pin_label, icon=pin_icon, variant="outline", size="sm",
-                  on_click=ui.Call("note_save", note_id=note_id,
-                                  field="pin")),
+                  on_click=ui.Call("note_save", note_id=note_id, field="pin")),
+        ui.Button(archive_label, icon=archive_icon, variant="outline", size="sm",
+                  on_click=ui.Call("note_save", note_id=note_id, field=archive_field)),
         ui.Button("Delete", icon="Trash2", variant="destructive", size="sm",
                   on_click=ui.Call("delete_note", note_id=note_id)),
     ], direction="horizontal", wrap=True, sticky=True)
