@@ -160,14 +160,13 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
             )
         if not params.name.strip():
             return ActionResult.error("New folder name must not be empty.")
-        # PATCH body must carry the new name; query string only carries auth.
-        # Pre-2.5.2 the call put `name` in query and sent `data={}`, which
-        # silently no-op'd at notes-api (the body-driven update path saw no
-        # fields to change).
+        # notes-api PATCH /folders/{id} reads name/icon/sort_order as Query
+        # parameters, not from the request body. Body is empty; auth + data
+        # travel in the query string.
         await _api_patch(
             f"/folders/{params.folder_id}",
-            {"user_id": require_user_id(ctx)},
-            {"name": params.name},
+            {"user_id": require_user_id(ctx), "name": params.name},
+            {},
         )
         return ActionResult.success(
             data={"folder_id": params.folder_id, "name": params.name,
