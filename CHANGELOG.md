@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [2.5.7] — 2026-04-30
+
+### Added
+
+- **Attachments** — new `ui.Accordion` section in the editor panel with `ui.FileUpload` (images, PDF, txt, md up to 20MB) and a list of existing attachments with delete buttons. Upload/delete handlers auto-refresh the editor panel.
+- **`handlers_attachments.py`** — new file with `upload_attachment` and `delete_attachment` `@chat.function` handlers; base64 FileUpload payload decoded and forwarded to backend as multipart.
+- **`_api_upload` helper** — added to `app.py` for multipart file uploads via `HTTPClient`.
+
+---
+
 ## [2.5.6] — 2026-04-30
 
 ### Added

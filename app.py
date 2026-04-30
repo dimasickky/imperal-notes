@@ -128,12 +128,23 @@ async def _api_delete(path: str, params: dict) -> dict:
     _raise_from(r, path)
     return r.json()
 
+
+async def _api_upload(path: str, params: dict, filename: str, data: bytes, content_type: str) -> dict:
+    r = await _http().post(
+        _url(path),
+        params=params,
+        headers=_auth_headers(),
+        files={"file": (filename, data, content_type)},
+    )
+    _raise_from(r, path)
+    return r.json()
+
 from pathlib import Path as _Path
 SYSTEM_PROMPT = (_Path(__file__).parent / "system_prompt.txt").read_text()
 
 ext = Extension(
     "notes",
-    version="2.5.6",
+    version="2.5.7",
     capabilities=["notes:read", "notes:write"],
 )
 

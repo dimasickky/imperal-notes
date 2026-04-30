@@ -14,6 +14,14 @@ log = logging.getLogger("notes")
 # ── Helpers ───────────────────────────────────────────────────────────────
 
 
+def _humanize_bytes(size: int) -> str:
+    for unit in ("B", "KB", "MB"):
+        if size < 1024:
+            return f"{size}{unit}"
+        size //= 1024
+    return f"{size}MB"
+
+
 def _format_date(iso_str: str) -> str:
     """Format ISO date to human-readable."""
     if not iso_str:
@@ -104,6 +112,12 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         folders = folders_data.get("folders", [])
     except Exception:
         folders = []
+
+    try:
+        att_data = await _api_get(f"/notes/{note_id}/attachments", {"user_id": uid})
+        attachments = att_data.get("attachments", [])
+    except Exception:
+        attachments = []
 
     # ── Action bar (sticky) ───────────────────────────────────────────
     pin_label = "Unpin" if is_pinned else "Pin"
