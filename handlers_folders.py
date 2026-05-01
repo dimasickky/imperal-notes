@@ -77,7 +77,7 @@ class ResolveFolderParams(BaseModel):
     action_type="read",
     description="List all note folders.",
 )
-async def fn_list_folders(ctx) -> ActionResult:
+async def fn_list_folders(ctx, params: NoParams) -> ActionResult:
     try:
         folders = (await _api_get(ctx, "/folders", {
             "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
@@ -236,7 +236,7 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     action_type="read",
     description="List all notes in trash.",
 )
-async def fn_list_trash(ctx) -> ActionResult:
+async def fn_list_trash(ctx, params: NoParams) -> ActionResult:
     try:
         notes = (await _api_get(ctx, "/notes", {
             "user_id":   require_user_id(ctx),
@@ -293,7 +293,7 @@ async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
     event="emptied",
     description="Permanently delete all trashed notes.",
 )
-async def fn_empty_trash(ctx) -> ActionResult:
+async def fn_empty_trash(ctx, params: NoParams) -> ActionResult:
     try:
         data = await _api_post(ctx, "/notes/trash/empty",
                                params={"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx)})
