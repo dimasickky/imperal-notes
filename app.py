@@ -4,92 +4,113 @@ from __future__ import annotations
 import logging
 import os
 
-import httpx
+from pydantic import BaseModel
 
 from imperal_sdk import Extension
-from imperal_sdk.chat import ChatExtension, ActionResult
-from imperal_sdk.http import HTTPClient
+from imperal_sdk.chat import ChatExtension, ActionResult  # noqa: F401 — re-exported
 
 log = logging.getLogger("notes")
 
 NOTES_API_URL = os.environ["NOTES_API_URL"]
 NOTES_API_KEY = os.getenv("NOTES_API_KEY", "")
 
+_NOTES_ICON = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
+    '<polyline points="14 2 14 8 20 8"/>'
+    '<line x1="16" y1="13" x2="8" y2="13"/>'
+    '<line x1="16" y1="17" x2="8" y2="17"/>'
+    '<polyline points="10 9 9 9 8 9"/>'
+    '</svg>'
+)
 
-# ─── HTTP via SDK HTTPClient (replaces direct httpx.AsyncClient) ──────── #
-#
-# Module-level HTTPClient chosen because _api_* helpers are called from
-# panel renderers + handlers alike — threading ctx through every layer
-# would be invasive. Same wrapper ctx.http uses under the hood: typed
-# HTTPResponse (.ok / .status_code / .body / .json()), per-request httpx
-# session, no cross-tenant state bleed.
 
-_http_client: HTTPClient | None = None
+# ─── Backend error ────────────────────────────────────────────────────────── #
+
+class NotesAPIError(Exception):
+    """HTTP error from notes-api backend."""
+
+    def __init__(self, status_code: int, detail: str, path: str) -> None:
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(f"notes-api {status_code} on {path}: {detail}")
 
 
-def _http() -> HTTPClient:
-    global _http_client
-    if _http_client is None:
-        _http_client = HTTPClient(timeout=15)
-    return _http_client
-
+# ─── HTTP helpers (ctx-scoped, per-request, no shared state) ─────────────── #
 
 def _url(path: str) -> str:
     return f"{NOTES_API_URL.rstrip('/')}{path}"
 
 
-def _auth_headers() -> dict:
+def _auth() -> dict:
     return {"x-api-key": NOTES_API_KEY} if NOTES_API_KEY else {}
 
 
 def _raise_from(resp, path: str) -> None:
-    """Mirror httpx.raise_for_status() using the SDK response shape.
-
-    Preserves the `httpx.HTTPStatusError` type that handlers already catch,
-    so the migration doesn't ripple into every handler's except-clauses.
-    """
+    """Raise NotesAPIError when the SDK HTTPResponse indicates failure."""
     if resp.ok:
         return
-    # Synthesise a minimal httpx.Request/Response pair so HTTPStatusError
-    # holds the real status code + body for handlers that inspect them.
     body = resp.body
     if isinstance(body, dict):
-        import json as _json
-        raw = _json.dumps(body).encode()
+        detail = body.get("detail") or str(body)
     elif isinstance(body, str):
-        raw = body.encode()
-    elif isinstance(body, bytes):
-        raw = body
+        detail = body
     else:
-        raw = f"HTTP {resp.status_code}".encode()
-    req = httpx.Request("GET", _url(path))
-    httpx_resp = httpx.Response(status_code=resp.status_code, content=raw, request=req)
-    raise httpx.HTTPStatusError(
-        f"notes-api {resp.status_code} on {path}",
-        request=req, response=httpx_resp,
+        detail = f"HTTP {resp.status_code}"
+    raise NotesAPIError(resp.status_code, detail, path)
+
+
+async def _api_get(ctx, path: str, params: dict | None = None) -> dict:
+    r = await ctx.http.get(_url(path), params=params or {}, headers=_auth())
+    _raise_from(r, path)
+    body = r.body
+    return body if isinstance(body, dict) else {}
+
+
+async def _api_post(ctx, path: str, data: dict | None = None, params: dict | None = None) -> dict:
+    r = await ctx.http.post(_url(path), json=data, params=params, headers=_auth())
+    _raise_from(r, path)
+    body = r.body
+    return body if isinstance(body, dict) else {}
+
+
+async def _api_patch(ctx, path: str, params: dict, data: dict) -> dict:
+    r = await ctx.http.patch(_url(path), params=params, json=data, headers=_auth())
+    _raise_from(r, path)
+    body = r.body
+    return body if isinstance(body, dict) else {}
+
+
+async def _api_delete(ctx, path: str, params: dict) -> dict:
+    r = await ctx.http.delete(_url(path), params=params, headers=_auth())
+    _raise_from(r, path)
+    body = r.body
+    return body if isinstance(body, dict) else {}
+
+
+async def _api_upload(ctx, path: str, params: dict, filename: str,
+                      data: bytes, content_type: str) -> dict:
+    r = await ctx.http.post(
+        _url(path),
+        params=params,
+        headers=_auth(),
+        files={"file": (filename, data, content_type)},
     )
+    _raise_from(r, path)
+    body = r.body
+    return body if isinstance(body, dict) else {}
 
 
-# ─── Identity helpers ─────────────────────────────────────────────────── #
-#
-# _user_id returns "" when ctx has no user attached. This is correct for
-# panel/skeleton renderers which may fire for anonymous sessions and must
-# tolerate absence (they return empty shapes). Chat handlers MUST use
-# require_user_id() so an empty ctx surfaces a loud error instead of
-# silently scoping the backend query to "no-user" and returning 0 rows.
+# ─── Identity helpers ─────────────────────────────────────────────────────── #
 
 def _user_id(ctx) -> str:
+    """Return user ID or '' for anonymous contexts (panels, skeletons)."""
     return ctx.user.imperal_id if hasattr(ctx, "user") and ctx.user else ""
 
 
 def require_user_id(ctx) -> str:
-    """Return ctx.user.imperal_id or raise. Use from every @chat.function handler.
-
-    When a chain step arrives without ctx.user populated (kernel-side bug
-    observed 2026-04-23), a silent "" would scope every backend query to
-    no-user and hand back empty lists — indistinguishable from a real
-    empty folder. Raising makes the failure loud and catchable.
-    """
+    """Return user ID or raise. Every @chat.function handler must call this."""
     uid = _user_id(ctx)
     if not uid:
         raise RuntimeError(
@@ -105,51 +126,60 @@ def _tenant_id(ctx) -> str:
     return "default"
 
 
-async def _api_get(path: str, params: dict = None) -> dict:
-    r = await _http().get(_url(path), params=params or {}, headers=_auth_headers())
-    _raise_from(r, path)
-    return r.json()
+# ─── Extension ───────────────────────────────────────────────────────────── #
+
+ext = Extension(
+    "notes",
+    version="3.0.0",
+    capabilities=["notes:read", "notes:write"],
+    display_name="Notes",
+    description=(
+        "Personal notes with folders, tags, full-text search, "
+        "and trash management for your workspace."
+    ),
+    icon=_NOTES_ICON,
+    actions_explicit=True,
+)
 
 
-async def _api_post(path: str, data: dict = None, params: dict = None) -> dict:
-    r = await _http().post(_url(path), json=data, params=params, headers=_auth_headers())
-    _raise_from(r, path)
-    return r.json()
+# ─── Cache models (SDK 4.0 ctx.cache, Pydantic-typed, per-user TTL) ───────── #
+
+@ext.cache_model("folders_list")
+class FoldersCacheEntry(BaseModel):
+    folders: list[dict]
 
 
-async def _api_patch(path: str, params: dict, data: dict) -> dict:
-    r = await _http().patch(_url(path), params=params, json=data, headers=_auth_headers())
-    _raise_from(r, path)
-    return r.json()
+@ext.cache_model("tags_list")
+class TagsCacheEntry(BaseModel):
+    tags: list[str]
 
 
-async def _api_delete(path: str, params: dict) -> dict:
-    r = await _http().delete(_url(path), params=params, headers=_auth_headers())
-    _raise_from(r, path)
-    return r.json()
+@ext.cache_model("folder_stats")
+class FolderStatsCacheEntry(BaseModel):
+    counts: dict
 
 
-async def _api_upload(path: str, params: dict, filename: str, data: bytes, content_type: str) -> dict:
-    r = await _http().post(
-        _url(path),
-        params=params,
-        headers=_auth_headers(),
-        files={"file": (filename, data, content_type)},
-    )
-    _raise_from(r, path)
-    return r.json()
+# ─── Emitted events (UEB manifest §M7, SDK 3.6+) ─────────────────────────── #
+
+@ext.emits("notes.created")
+@ext.emits("notes.updated")
+@ext.emits("notes.deleted")
+@ext.emits("notes.permanently_deleted")
+@ext.emits("notes.moved")
+@ext.emits("notes.restored")
+@ext.emits("notes.emptied")
+@ext.emits("notes.folder_created")
+@ext.emits("notes.folder_renamed")
+@ext.emits("notes.folder_deleted")
+async def _declare_events() -> None:  # pragma: no cover
+    pass
+
+
+# ─── ChatExtension ────────────────────────────────────────────────────────── #
 
 from pathlib import Path as _Path
 SYSTEM_PROMPT = (_Path(__file__).parent / "system_prompt.txt").read_text()
 
-ext = Extension(
-    "notes",
-    version="2.6.4",
-    capabilities=["notes:read", "notes:write"],
-)
-
-# SDK 3.3+ — `model=` deprecated; LLM resolution moved to kernel ctx-injection
-# (see ctx._llm_configs). Will be hard-removed in SDK 4.0.
 chat = ChatExtension(
     ext=ext,
     tool_name="tool_notes_chat",
@@ -160,10 +190,13 @@ chat = ChatExtension(
     system_prompt=SYSTEM_PROMPT,
 )
 
+
+# ─── Lifecycle ────────────────────────────────────────────────────────────── #
+
 @ext.health_check
 async def health(ctx) -> dict:
     try:
-        r = await _http().get(_url("/health"), headers=_auth_headers())
+        r = await ctx.http.get(_url("/health"), headers=_auth())
         if not r.ok:
             return {"status": "degraded", "version": ext.version, "api": "unreachable"}
         return {"status": "ok", "version": ext.version, "api": "reachable"}
@@ -171,6 +204,7 @@ async def health(ctx) -> dict:
         log.warning("notes health check failed: %s", exc)
         return {"status": "degraded", "version": ext.version, "api": "unreachable"}
 
+
 @ext.on_install
-async def on_install(ctx):
-    log.info(f"notes installed for user {_user_id(ctx) or 'system'}")
+async def on_install(ctx) -> None:
+    log.info("notes installed for user %s", _user_id(ctx) or "system")

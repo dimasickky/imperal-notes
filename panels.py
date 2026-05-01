@@ -5,12 +5,12 @@ import logging
 
 from imperal_sdk import ui
 
-from app import ext, _api_get, _user_id, _tenant_id
+from app import (
+    ext, _api_get, _user_id, _tenant_id,
+    FoldersCacheEntry, FolderStatsCacheEntry,
+)
 
 log = logging.getLogger("notes")
-
-
-# ── Sidebar Panel (LEFT) ─────────────────────────────────────────────────
 
 
 @ext.panel(
@@ -26,67 +26,73 @@ log = logging.getLogger("notes")
 )
 async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
                         active_note_id: str = "", **kwargs):
-    """Notes sidebar — folders + note list + trash."""
     uid, tid = _user_id(ctx), _tenant_id(ctx)
 
+    # ── Folders (cached 60s per user) ────────────────────────────────────
     folders_failed = False
+    folders: list = []
     try:
-        folders = (await _api_get("/folders", {"user_id": uid, "tenant_id": tid})).get("folders", [])
+        async def _load_folders():
+            data = await _api_get(ctx, "/folders", {"user_id": uid, "tenant_id": tid})
+            return FoldersCacheEntry(folders=data.get("folders", []))
+
+        entry = await ctx.cache.get_or_fetch(
+            f"folders:{uid}", FoldersCacheEntry, ttl_seconds=60, fetcher=_load_folders,
+        )
+        folders = entry.folders
     except Exception as e:
         log.warning("sidebar: GET /folders failed for user=%s: %s", uid, e)
-        folders = []
         folders_failed = True
 
+    # ── Notes list (not cached — primary content, freshness required) ────
     notes_failed = False
+    all_notes: list = []
+    total_count = 0
     try:
-        # notes-api caps limit at 200 server-side (HTTP 422 above that).
-        # The fetch is for sidebar's note-list rendering; per-folder counts
-        # come from /folders/stats (DB-accurate GROUP BY) below.
-        notes_resp = await _api_get("/notes", {
+        notes_resp = await _api_get(ctx, "/notes", {
             "user_id": uid, "tenant_id": tid,
             "is_archived": False, "is_trashed": False, "limit": 200,
         }) or {}
-        all_notes = notes_resp.get("notes", [])
+        all_notes   = notes_resp.get("notes", [])
         total_count = int(notes_resp.get("total_count", len(all_notes)))
     except Exception as e:
         log.warning("sidebar: GET /notes failed for user=%s: %s", uid, e)
-        all_notes = []
-        total_count = 0
         notes_failed = True
 
-    # DB-accurate per-folder counts (independent of the 200-row sidebar fetch).
-    # Until /folders/stats was added, sidebar bucketed in-memory from those 200
-    # rows → counts were silently undercounted for users with >200 notes.
-    # Fallback to in-memory count if the endpoint is unavailable (older backend).
+    # ── Folder stats (cached 30s per user) ───────────────────────────────
     stats: dict = {}
     try:
-        stats_resp = await _api_get("/folders/stats", {
-            "user_id": uid, "tenant_id": tid,
-        }) or {}
-        stats = stats_resp.get("counts", {}) or {}
+        async def _load_stats():
+            data = await _api_get(ctx, "/folders/stats", {"user_id": uid, "tenant_id": tid})
+            return FolderStatsCacheEntry(counts=data.get("counts", {}))
+
+        stats_entry = await ctx.cache.get_or_fetch(
+            f"stats:{uid}", FolderStatsCacheEntry, ttl_seconds=30, fetcher=_load_stats,
+        )
+        stats = stats_entry.counts
     except Exception as e:
         log.warning("sidebar: GET /folders/stats failed for user=%s: %s — "
                     "falling back to in-memory bucketing (capped at 200)", uid, e)
 
     children: list = []
 
-    trash_variant    = "secondary" if view == "trash"    else "ghost"
-    archive_variant  = "secondary" if view == "archived" else "ghost"
+    trash_variant     = "secondary" if view == "trash"    else "ghost"
+    archive_variant   = "secondary" if view == "archived" else "ghost"
     new_folder_variant = "secondary" if view == "new_folder" else "ghost"
     children.append(ui.Stack([
         ui.Button("New Note", icon="Plus", variant="primary", size="sm",
                   on_click=ui.Call("__panel__editor", note_id="new")),
         ui.Button("New Folder", icon="FolderPlus", variant=new_folder_variant, size="sm",
                   on_click=ui.Call("__panel__sidebar",
-                                  view="notes" if view == "new_folder" else "new_folder",
-                                  folder_id=folder_id)),
+                                   view="notes" if view == "new_folder" else "new_folder",
+                                   folder_id=folder_id)),
         ui.Button("Archived", icon="Archive", variant=archive_variant, size="sm",
                   on_click=ui.Call("__panel__sidebar",
                                    view="notes" if view == "archived" else "archived")),
         ui.Button("Trash", icon="Trash2", variant=trash_variant, size="sm",
                   on_click=ui.Call("__panel__sidebar",
-                                  view="notes" if view == "trash" else "trash")),
-    ], direction="horizontal", wrap=True, sticky=True))
+                                   view="notes" if view == "trash" else "trash")),
+    ], direction="h", wrap=True, sticky=True))
 
     if view == "new_folder":
         children.append(ui.Input(
@@ -104,8 +110,7 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
             param_name="name",
             value=current,
             on_submit=ui.Call("rename_folder",
-                             folder_id=rename_target_id,
-                             name="{{value}}"),
+                              folder_id=rename_target_id, name="{{value}}"),
         ))
 
     if view == "archived":
@@ -113,16 +118,14 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
             "Back to Notes", icon="ArrowLeft", variant="ghost", size="sm",
             on_click=ui.Call("__panel__sidebar", view=""),
         ))
-        await _append_archived(children, uid, tid)
+        await _append_archived(children, ctx)
     elif view == "trash":
         children.append(ui.Button(
             "Back to Notes", icon="ArrowLeft", variant="ghost", size="sm",
             on_click=ui.Call("__panel__sidebar", view=""),
         ))
-        await _append_trash(children, uid, tid)
+        await _append_trash(children, ctx)
     elif notes_failed or folders_failed:
-        # Don't render a misleading "0" counter when the API call failed —
-        # show an explicit error state with a refresh hint instead.
         children.append(ui.Empty(
             message="Couldn't load notes. Try refreshing the page.",
             icon="AlertTriangle",
@@ -134,9 +137,7 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
     root = ui.Stack(children=children, gap=2, className="min-h-full")
 
     if not active_note_id and all_notes and view != "trash":
-        root.props["auto_action"] = ui.Call(
-            "__panel__editor", note_id=all_notes[0]["id"],
-        )
+        root.props["auto_action"] = ui.Call("__panel__editor", note_id=all_notes[0]["id"])
 
     return root
 
@@ -147,13 +148,9 @@ def _count_notes_in_folder(notes: list, folder_id: str) -> int:
 
 def _append_folders(children: list, folders: list, active_folder: str,
                     all_notes: list, total: int, stats: dict) -> None:
-    # Prefer DB-accurate stats from /folders/stats (works past 200);
-    # fall back to in-memory counts if backend predates the endpoint.
     all_count = stats.get("__all__", total)
-    unfiled = stats.get(
-        "__unfiled__",
-        sum(1 for n in all_notes if not n.get("folder_id")),
-    )
+    unfiled   = stats.get("__unfiled__",
+                          sum(1 for n in all_notes if not n.get("folder_id")))
 
     items = [
         ui.ListItem(
@@ -180,8 +177,8 @@ def _append_folders(children: list, folders: list, active_folder: str,
                 {
                     "icon": "Pencil",
                     "on_click": ui.Call("__panel__sidebar",
-                                       view=f"rename_folder:{f['id']}",
-                                       folder_id=f["id"]),
+                                        view=f"rename_folder:{f['id']}",
+                                        folder_id=f["id"]),
                 },
                 {
                     "icon": "Trash2",
@@ -243,15 +240,16 @@ def _append_notes(children: list, all_notes: list, folder_id: str,
     children.append(ui.List(items=items, searchable=True, page_size=20))
 
 
-async def _append_archived(children: list, uid: str, tid: str) -> None:
+async def _append_archived(children: list, ctx) -> None:
+    uid, tid = _user_id(ctx), _tenant_id(ctx)
     try:
-        resp = (await _api_get("/notes", {
+        resp = await _api_get(ctx, "/notes", {
             "user_id": uid, "tenant_id": tid,
             "is_archived": True, "is_trashed": False, "limit": 200,
-        }))
+        })
         archived = resp.get("notes", [])
     except Exception as e:
-        log.warning("sidebar archived: GET /notes is_archived=true failed for user=%s: %s", uid, e)
+        log.warning("sidebar archived: failed for user=%s: %s", uid, e)
         children.append(ui.Empty(
             message="Couldn't load archived notes. Try refreshing.",
             icon="AlertTriangle",
@@ -262,9 +260,8 @@ async def _append_archived(children: list, uid: str, tid: str) -> None:
         children.append(ui.Empty(message="No archived notes", icon="Archive"))
         return
 
-    items = []
-    for n in archived:
-        items.append(ui.ListItem(
+    items = [
+        ui.ListItem(
             id=n["id"],
             title=n.get("title", "Untitled"),
             subtitle=f"{n.get('word_count', 0)} words",
@@ -281,22 +278,24 @@ async def _append_archived(children: list, uid: str, tid: str) -> None:
                     "confirm": f"Move '{n.get('title', 'Untitled')}' to trash?",
                 },
             ],
-        ))
-
+        )
+        for n in archived
+    ]
     children.append(ui.Divider(f"Archived ({len(archived)})"))
     children.append(ui.List(items=items))
 
 
-async def _append_trash(children: list, uid: str, tid: str) -> None:
+async def _append_trash(children: list, ctx) -> None:
+    uid, tid = _user_id(ctx), _tenant_id(ctx)
     try:
-        trash = (await _api_get("/notes", {
+        trash = (await _api_get(ctx, "/notes", {
             "user_id": uid, "tenant_id": tid,
             "is_trashed": True, "limit": 200,
         })).get("notes", [])
     except Exception as e:
-        log.warning("sidebar trash: GET /notes is_archived=true failed for user=%s: %s", uid, e)
+        log.warning("sidebar trash: failed for user=%s: %s", uid, e)
         children.append(ui.Empty(
-            message="Couldn't load trash. Try refreshing the page.",
+            message="Couldn't load trash. Try refreshing.",
             icon="AlertTriangle",
         ))
         return
@@ -305,9 +304,8 @@ async def _append_trash(children: list, uid: str, tid: str) -> None:
         children.append(ui.Empty(message="Trash is empty", icon="CheckCircle"))
         return
 
-    items = []
-    for n in trash:
-        items.append(ui.ListItem(
+    items = [
+        ui.ListItem(
             id=n["id"],
             title=n.get("title", "Untitled"),
             subtitle=f"{n.get('word_count', 0)} words",
@@ -323,8 +321,9 @@ async def _append_trash(children: list, uid: str, tid: str) -> None:
                     "confirm": f"Permanently delete '{n.get('title', 'Untitled')}'?",
                 },
             ],
-        ))
-
+        )
+        for n in trash
+    ]
     children.append(ui.Divider(f"Trash ({len(trash)})"))
     children.append(ui.List(items=items))
     children.append(ui.Button(

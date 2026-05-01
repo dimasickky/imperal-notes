@@ -1,42 +1,250 @@
 {
+  "manifest_schema_version": 3,
   "app_id": "notes",
-  "version": "2.6.4",
+  "version": "3.0.0",
+  "name": "Notes",
+  "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
+  "actions_explicit": true,
   "capabilities": ["notes:read", "notes:write"],
   "tools": [
     {
       "name": "tool_notes_chat",
-      "description": "Personal notes assistant — create, read, update, delete, search, pin, tag notes; create, rename, delete, list folders; move notes between folders; manage trash (restore, empty, permanent delete); full-text search across notes. NOT for emails, SQL databases, chat messages, tasks, or legal cases.",
+      "description": "Personal notes assistant — create, read, update, delete, search, organize notes with folders and tags, move notes, manage trash",
+      "action_type": "read",
+      "chain_callable": false,
       "scopes": [],
-      "parameters": {
-        "message": {"type": "string", "required": false},
-        "kwargs": {"type": "string", "required": true}
-      }
+      "owner_chat_tool": null
     },
     {
       "name": "skeleton_refresh_notes",
       "description": "Refresh note statistics: total count, pinned, trash, recent titles.",
+      "action_type": "read",
+      "chain_callable": false,
+      "scopes": ["notes:read"]
+    },
+    {
+      "name": "list_notes",
+      "description": "List notes (paginated). Returns up to `limit` rows per call (max 200). If `has_more` is true, call again with `offset=offset+limit`.",
+      "action_type": "read",
+      "chain_callable": false,
       "scopes": ["notes:read"],
-      "parameters": {
-        "kwargs": {"type": "string", "required": true}
-      }
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "get_note",
+      "description": "Get full content of a note by ID.",
+      "action_type": "read",
+      "chain_callable": false,
+      "scopes": ["notes:read"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "create_note",
+      "description": "Create a new note.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["create:note"],
+      "event": "notes.created",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "update_note",
+      "description": "Update note title, content, tags, or pin status.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["update:note"],
+      "event": "notes.updated",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "move_note",
+      "description": "Move note to a folder, or root with empty folder_id.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["update:note"],
+      "event": "notes.moved",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "delete_note",
+      "description": "Delete a note (moves to trash).",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": ["trash:note"],
+      "event": "notes.deleted",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "permanent_delete_note",
+      "description": "Permanently delete a note. Cannot be undone.",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": ["delete:note"],
+      "event": "notes.permanently_deleted",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "search_notes",
+      "description": "Full-text search across all notes (paginated, max 50 per page).",
+      "action_type": "read",
+      "chain_callable": false,
+      "scopes": ["notes:read"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "list_folders",
+      "description": "List all note folders.",
+      "action_type": "read",
+      "chain_callable": false,
+      "scopes": ["notes:read"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "resolve_folder",
+      "description": "Resolve a folder by name (case-insensitive). Returns folder_id and match_quality.",
+      "action_type": "read",
+      "chain_callable": false,
+      "scopes": ["notes:read"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "create_folder",
+      "description": "Create a new folder.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["create:folder"],
+      "event": "notes.folder_created",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "rename_folder",
+      "description": "Rename an existing folder.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["update:folder"],
+      "event": "notes.folder_renamed",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "delete_folder",
+      "description": "Delete a folder (notes move to root).",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": ["delete:folder"],
+      "event": "notes.folder_deleted",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "list_trash",
+      "description": "List all notes in trash.",
+      "action_type": "read",
+      "chain_callable": false,
+      "scopes": ["notes:read"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "restore_note",
+      "description": "Restore a note from trash.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["update:note"],
+      "event": "notes.restored",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "empty_trash",
+      "description": "Permanently delete all trashed notes.",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": ["delete:note"],
+      "event": "notes.emptied",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "note_save",
+      "description": "Save a note field from the editor panel (title, content, tags, folder, pin, archive).",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["update:note"],
+      "event": "notes.updated",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "upload_attachment",
+      "description": "Upload a file attachment to a note.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["create:attachment"],
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "delete_attachment",
+      "description": "Delete a file attachment from a note.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["delete:attachment"],
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "duplicate_note",
+      "description": "Duplicate a note — copies title, content, folder, and tags into a new note.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": ["create:note"],
+      "event": "notes.created",
+      "scopes": ["notes:write"],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "export_markdown",
+      "description": "Export a note as Markdown. Returns the converted content with a download button.",
+      "action_type": "read",
+      "chain_callable": false,
+      "scopes": ["notes:read"],
+      "owner_chat_tool": "tool_notes_chat"
     },
     {
       "name": "__panel__sidebar",
       "description": "Panel: Notes",
+      "synthetic": true,
       "scopes": [],
-      "parameters": {
-        "params": {"type": "string", "required": true}
-      }
+      "parameters": {"params": {"type": "string", "required": true}}
     },
     {
       "name": "__panel__editor",
       "description": "Panel: Editor",
+      "synthetic": true,
       "scopes": [],
-      "parameters": {
-        "params": {"type": "string", "required": true}
-      }
+      "parameters": {"params": {"type": "string", "required": true}}
     }
   ],
+  "events": {
+    "emits": [
+      {"type": "notes.created"},
+      {"type": "notes.updated"},
+      {"type": "notes.deleted"},
+      {"type": "notes.permanently_deleted"},
+      {"type": "notes.moved"},
+      {"type": "notes.restored"},
+      {"type": "notes.emptied"},
+      {"type": "notes.folder_created"},
+      {"type": "notes.folder_renamed"},
+      {"type": "notes.folder_deleted"}
+    ]
+  },
   "signals": [],
   "schedules": [],
   "required_scopes": ["notes:read", "notes:write"]

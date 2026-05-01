@@ -1,19 +1,11 @@
-"""Notes · Attachment handlers (upload / list / delete)."""
+"""Notes · Attachment handlers (upload / delete)."""
 from __future__ import annotations
 
 import base64
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from app import chat, ActionResult, _api_get, _api_delete, _api_upload, require_user_id
-
-
-def _humanize_bytes(size: int) -> str:
-    for unit in ("B", "KB", "MB"):
-        if size < 1024:
-            return f"{size}{unit}"
-        size //= 1024
-    return f"{size}MB"
+from app import chat, ActionResult, NotesAPIError, _api_delete, _api_upload, require_user_id
 
 
 def _extract_b64(payload) -> tuple[str, str, str]:
@@ -30,8 +22,6 @@ def _extract_b64(payload) -> tuple[str, str, str]:
     return b64, item.get("name", "file"), item.get("content_type", "application/octet-stream")
 
 
-# ─── Models ───────────────────────────────────────────────────────────── #
-
 class AttachmentUploadParams(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -40,7 +30,8 @@ class AttachmentUploadParams(BaseModel):
         validation_alias=AliasChoices("note_id", "noteId"),
     )
     files: object = Field(
-        default=None, description="FileUpload payload (list[dict] with data_base64/name/content_type)",
+        default=None,
+        description="FileUpload payload (list[dict] with data_base64/name/content_type)",
         validation_alias=AliasChoices("files", "file", "upload"),
     )
 
@@ -58,13 +49,13 @@ class AttachmentDeleteParams(BaseModel):
     )
 
 
-# ─── Handlers ─────────────────────────────────────────────────────────── #
-
 @chat.function(
     "upload_attachment",
     action_type="write",
+    chain_callable=True,
+    effects=["create:attachment"],
     event="attachment.uploaded",
-    description="Upload a file attachment to a note. Internal panel action.",
+    description="Upload a file attachment to a note.",
 )
 async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionResult:
     uid = require_user_id(ctx)
@@ -82,17 +73,18 @@ async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionRes
 
     try:
         result = await _api_upload(
+            ctx,
             f"/notes/{params.note_id}/attachments",
             {"user_id": uid},
-            filename,
-            file_bytes,
-            content_type,
+            filename, file_bytes, content_type,
         )
         att = result.get("attachment", {})
         return ActionResult.success(
             data={"attachment": att, "refresh_panels": ["editor"]},
             summary=f"Uploaded {filename}",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"Upload failed: {e.status_code} {e.detail}")
     except Exception as e:
         return ActionResult.error(f"Upload failed: {e}")
 
@@ -100,8 +92,10 @@ async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionRes
 @chat.function(
     "delete_attachment",
     action_type="write",
+    chain_callable=True,
+    effects=["delete:attachment"],
     event="attachment.deleted",
-    description="Delete a file attachment from a note. Internal panel action.",
+    description="Delete a file attachment from a note.",
 )
 async def fn_delete_attachment(ctx, params: AttachmentDeleteParams) -> ActionResult:
     uid = require_user_id(ctx)
@@ -109,10 +103,12 @@ async def fn_delete_attachment(ctx, params: AttachmentDeleteParams) -> ActionRes
         return ActionResult.error("att_id required")
 
     try:
-        await _api_delete(f"/attachments/{params.att_id}", {"user_id": uid})
+        await _api_delete(ctx, f"/attachments/{params.att_id}", {"user_id": uid})
         return ActionResult.success(
             data={"att_id": params.att_id, "refresh_panels": ["editor"]},
             summary="Attachment deleted",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"Delete failed: {e.status_code} {e.detail}")
     except Exception as e:
         return ActionResult.error(f"Delete failed: {e}")

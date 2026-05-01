@@ -3,22 +3,19 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from app import chat, ActionResult, _api_get, _api_post, _api_patch, _api_delete, require_user_id, _tenant_id
+from app import (
+    chat, ActionResult, NotesAPIError,
+    _api_get, _api_post, _api_patch, _api_delete,
+    require_user_id, _tenant_id,
+)
 
 
-# ─── Models ───────────────────────────────────────────────────────────── #
-#
-# Same hardening rationale as models_notes.py: every field that an LLM is
-# observed to confuse is wired with `validation_alias=AliasChoices(...)`,
-# and all "id"/"name"-shaped required fields carry a safe default so a
-# missing arg becomes a friendly ActionResult.error instead of a Pydantic
-# stack trace surfaced in the chat.
+# ─── Models ───────────────────────────────────────────────────────────────── #
 
 _MODEL_CONFIG = ConfigDict(populate_by_name=True)
 
 
 class FolderIdParams(BaseModel):
-    """Target a specific folder."""
     model_config = _MODEL_CONFIG
 
     folder_id: str = Field(
@@ -28,7 +25,6 @@ class FolderIdParams(BaseModel):
 
 
 class CreateFolderParams(BaseModel):
-    """Create a new folder."""
     model_config = _MODEL_CONFIG
 
     name: str = Field(
@@ -38,7 +34,6 @@ class CreateFolderParams(BaseModel):
 
 
 class RenameFolderParams(BaseModel):
-    """Rename an existing folder."""
     model_config = _MODEL_CONFIG
 
     folder_id: str = Field(
@@ -52,7 +47,6 @@ class RenameFolderParams(BaseModel):
 
 
 class RestoreNoteParams(BaseModel):
-    """Restore a trashed note."""
     model_config = _MODEL_CONFIG
 
     note_id: str = Field(
@@ -62,7 +56,6 @@ class RestoreNoteParams(BaseModel):
 
 
 class ResolveFolderParams(BaseModel):
-    """Find a folder by name (case-insensitive)."""
     model_config = _MODEL_CONFIG
 
     name: str = Field(
@@ -72,23 +65,32 @@ class ResolveFolderParams(BaseModel):
     )
 
 
-# ─── Folder Handlers ──────────────────────────────────────────────────── #
+# ─── Folder Handlers ──────────────────────────────────────────────────────── #
 
-@chat.function("list_folders", action_type="read", description="List all note folders.")
+@chat.function(
+    "list_folders",
+    action_type="read",
+    description="List all note folders.",
+)
 async def fn_list_folders(ctx) -> ActionResult:
-    """List all note folders."""
     try:
-        folders = (await _api_get("/folders", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx)})).get("folders", [])
+        folders = (await _api_get(ctx, "/folders", {
+            "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
+        })).get("folders", [])
         return ActionResult.success(
-            data={"folders": [{"folder_id": f["id"], "name": f["name"]} for f in folders], "total": len(folders)},
+            data={"folders": [{"folder_id": f["id"], "name": f["name"]} for f in folders],
+                  "total": len(folders)},
             summary=f"Found {len(folders)} folder(s)",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"list_folders backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         return ActionResult.error(str(e))
 
 
 @chat.function(
-    "resolve_folder", action_type="read",
+    "resolve_folder",
+    action_type="read",
     description=(
         "Resolve a folder by name (case-insensitive). Returns the folder_id "
         "plus match_quality ('exact' | 'prefix' | 'contains' | 'none'). Use "
@@ -97,13 +99,12 @@ async def fn_list_folders(ctx) -> ActionResult:
     ),
 )
 async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
-    """Find a folder by name — exact match preferred, then prefix, then substring."""
     try:
         target = params.name.strip().lower()
         if not target:
             return ActionResult.error("Folder name is required. Pass name (or title/folder_name).")
 
-        folders = (await _api_get("/folders", {
+        folders = (await _api_get(ctx, "/folders", {
             "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
         })).get("folders", [])
 
@@ -119,8 +120,12 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
             hit, quality = contain[0], "contains"
         else:
             return ActionResult.success(
-                data={"folder_id": None, "name": None, "match_quality": "none",
-                      "candidates": [{"folder_id": f["id"], "name": f["name"]} for f in folders]},
+                data={
+                    "folder_id":     None,
+                    "name":          None,
+                    "match_quality": "none",
+                    "candidates":    [{"folder_id": f["id"], "name": f["name"]} for f in folders],
+                },
                 summary=f"No folder named '{params.name}' — {len(folders)} folder(s) exist",
             )
 
@@ -128,42 +133,59 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
             data={"folder_id": hit["id"], "name": hit["name"], "match_quality": quality},
             summary=f"Resolved '{params.name}' -> '{hit['name']}' ({quality} match)",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"resolve_folder backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         return ActionResult.error(str(e))
 
 
-@chat.function("create_folder", action_type="write", event="folder_created", description="Create a new folder.")
+@chat.function(
+    "create_folder",
+    action_type="write",
+    chain_callable=True,
+    effects=["create:folder"],
+    event="folder_created",
+    description="Create a new folder.",
+)
 async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
-    """Create a new folder."""
     try:
         name = params.name.strip()
         if not name:
             return ActionResult.error("Folder name is required. Pass name (or title/folder_name).")
-        folder = (await _api_post("/folders", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
-                                               "name": name, "icon": "folder"})).get("folder", {})
+        folder = (await _api_post(ctx, "/folders", {
+            "user_id":   require_user_id(ctx),
+            "tenant_id": _tenant_id(ctx),
+            "name":      name,
+            "icon":      "folder",
+        })).get("folder", {})
         return ActionResult.success(
             data={"folder_id": folder.get("id"), "name": folder.get("name"),
                   "refresh_panels": ["sidebar"]},
             summary=f"Folder created: {folder.get('name', params.name)}",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"create_folder backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         return ActionResult.error(str(e))
 
 
-@chat.function("rename_folder", action_type="write", event="folder_renamed", description="Rename an existing folder.")
+@chat.function(
+    "rename_folder",
+    action_type="write",
+    chain_callable=True,
+    effects=["update:folder"],
+    event="folder_renamed",
+    description="Rename an existing folder.",
+)
 async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
-    """Rename a folder."""
     try:
         if not params.folder_id.strip():
-            return ActionResult.error(
-                "Folder id is required. Find one with resolve_folder first."
-            )
+            return ActionResult.error("Folder id is required. Find one with resolve_folder first.")
         if not params.name.strip():
             return ActionResult.error("New folder name must not be empty.")
-        # notes-api PATCH /folders/{id} reads name/icon/sort_order as Query
-        # parameters, not from the request body. Body is empty; auth + data
-        # travel in the query string.
+        # notes-api PATCH /folders/{id} reads name as a Query param, not body.
         await _api_patch(
+            ctx,
             f"/folders/{params.folder_id}",
             {"user_id": require_user_id(ctx), "name": params.name},
             {},
@@ -173,68 +195,109 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
                   "refresh_panels": ["sidebar"]},
             summary=f"Folder renamed to: {params.name}",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"rename_folder backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         return ActionResult.error(str(e))
 
 
-@chat.function("delete_folder", action_type="destructive", event="folder_deleted", description="Delete a folder (notes move to root).")
+@chat.function(
+    "delete_folder",
+    action_type="destructive",
+    chain_callable=True,
+    effects=["delete:folder"],
+    event="folder_deleted",
+    description="Delete a folder (notes move to root).",
+)
 async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
-    """Delete a folder (notes move to root)."""
     try:
         if not params.folder_id.strip():
-            return ActionResult.error(
-                "Folder id is required. Find one with resolve_folder first."
-            )
-        await _api_delete(f"/folders/{params.folder_id}", {"user_id": require_user_id(ctx)})
+            return ActionResult.error("Folder id is required. Find one with resolve_folder first.")
+        await _api_delete(ctx, f"/folders/{params.folder_id}", {"user_id": require_user_id(ctx)})
         return ActionResult.success(
             data={"folder_id": params.folder_id, "refresh_panels": ["sidebar"]},
             summary="Folder deleted, notes moved to root",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"delete_folder backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         return ActionResult.error(str(e))
 
 
-# ─── Trash Handlers ───────────────────────────────────────────────────── #
+# ─── Trash Handlers ───────────────────────────────────────────────────────── #
 
-@chat.function("list_trash", action_type="read", description="List all notes in trash.")
+@chat.function(
+    "list_trash",
+    action_type="read",
+    description="List all notes in trash.",
+)
 async def fn_list_trash(ctx) -> ActionResult:
-    """List all notes in trash."""
     try:
-        notes = (await _api_get("/notes", {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
-                                           "is_trashed": True, "limit": 50})).get("notes", [])
+        notes = (await _api_get(ctx, "/notes", {
+            "user_id":   require_user_id(ctx),
+            "tenant_id": _tenant_id(ctx),
+            "is_trashed": True,
+            "limit":     50,
+        })).get("notes", [])
         return ActionResult.success(
-            data={"trash_notes": [{"note_id": n["id"], "title": n["title"], "word_count": n.get("word_count", 0),
-                                   "tags": n.get("tags", [])} for n in notes], "total": len(notes)},
+            data={"trash_notes": [
+                {"note_id": n["id"], "title": n["title"],
+                 "word_count": n.get("word_count", 0), "tags": n.get("tags", [])}
+                for n in notes
+            ], "total": len(notes)},
             summary=f"Trash contains {len(notes)} note(s)",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"list_trash backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         return ActionResult.error(str(e))
 
 
-@chat.function("restore_note", action_type="write", event="restored", description="Restore a note from trash.")
+@chat.function(
+    "restore_note",
+    action_type="write",
+    chain_callable=True,
+    effects=["update:note"],
+    event="restored",
+    description="Restore a note from trash.",
+)
 async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
-    """Restore a note from trash."""
     try:
         if not params.note_id.strip():
-            return ActionResult.error(
-                "Note id is required to restore. Find one with list_trash first."
-            )
-        data = await _api_patch(f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)}, {"is_trashed": False})
+            return ActionResult.error("Note id is required to restore. Find one with list_trash first.")
+        data = await _api_patch(ctx, f"/notes/{params.note_id}",
+                                {"user_id": require_user_id(ctx)},
+                                {"is_trashed": False})
         note = data.get("note", {})
         return ActionResult.success(
-            data={"note_id": params.note_id, "title": note.get("title", ""), "folder_id": note.get("folder_id")},
+            data={"note_id": params.note_id, "title": note.get("title", ""),
+                  "folder_id": note.get("folder_id")},
             summary=f"Note restored: {note.get('title', '')}",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"restore_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         return ActionResult.error(str(e))
 
 
-@chat.function("empty_trash", action_type="destructive", event="emptied", description="Permanently delete all trashed notes.")
+@chat.function(
+    "empty_trash",
+    action_type="destructive",
+    chain_callable=True,
+    effects=["delete:note"],
+    event="emptied",
+    description="Permanently delete all trashed notes.",
+)
 async def fn_empty_trash(ctx) -> ActionResult:
-    """Permanently delete all trashed notes."""
     try:
-        data = await _api_post("/notes/trash/empty", params={"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx)})
-        return ActionResult.success(data={"deleted_count": data.get("deleted_count", 0)},
-                                    summary=f"Permanently deleted {data.get('deleted_count', 0)} note(s)")
+        data = await _api_post(ctx, "/notes/trash/empty",
+                               params={"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx)})
+        count = data.get("deleted_count", 0)
+        return ActionResult.success(
+            data={"deleted_count": count},
+            summary=f"Permanently deleted {count} note(s)",
+        )
+    except NotesAPIError as e:
+        return ActionResult.error(f"empty_trash backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         return ActionResult.error(str(e))

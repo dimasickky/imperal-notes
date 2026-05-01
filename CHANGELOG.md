@@ -6,6 +6,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.0.0] — 2026-05-01
+
+### Breaking
+- Requires `imperal-sdk==4.0.1` (federal contract v4.0.0)
+
+### Changed
+- **SDK 4.0.1 migration** — `Extension()` now declares `display_name`, `description`, `icon`, `actions_explicit=True` (V14/V15/V21 compliance)
+- **ctx.http** — replaced module-level `HTTPClient` singleton with per-request `ctx.http`; eliminates shared state between concurrent user requests
+- **NotesAPIError** — replaced `httpx.HTTPStatusError` synthesis with a clean `NotesAPIError(status_code, detail, path)`; removed httpx dependency from extension code
+- **chain_callable=True + effects=[]** on all write/destructive handlers (federal typed-dispatch contract; kernel chain planner now dispatches directly without LLM router)
+- **@ext.emits declarations** — 10 event types registered for UEB manifest §M7
+- **ctx.cache** — folders list (TTL=60s) and folder stats (TTL=30s) cached in sidebar; folders (60s) and tags (120s) cached in editor; reduces API calls per panel render
+- **Manifest schema v3** — `imperal.json` regenerated with per-tool `action_type`, `chain_callable`, `effects`, `owner_chat_tool`
+- **skeleton.py** — removed `**kwargs` from `skeleton_refresh_notes`; fixed trash count query (`is_trashed=True`, was incorrectly using `is_archived=True`)
+- **panels.py** — helper functions `_append_archived` / `_append_trash` now receive `ctx` directly (cleaner than `uid, tid` threading)
+- **Stack direction** — updated to `"h"` / `"v"` (SDK canonical form)
+
+### Fixed
+- Skeleton trash count was reporting archived note count, not trashed note count
+
+---
+
 ## [2.6.1] — 2026-04-30
 
 ### Fixed
