@@ -6,24 +6,15 @@ from datetime import datetime
 
 from imperal_sdk import ui
 
-from app import ext, _api_get, _api_post, _user_id, _tenant_id
+from app import (
+    ext, _api_get, _api_post, _user_id, _tenant_id,
+    FoldersCacheEntry, TagsCacheEntry,
+)
 
 log = logging.getLogger("notes")
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
-
-
-def _humanize_bytes(size: int) -> str:
-    for unit in ("B", "KB", "MB"):
-        if size < 1024:
-            return f"{size}{unit}"
-        size //= 1024
-    return f"{size}MB"
-
-
 def _format_date(iso_str: str) -> str:
-    """Format ISO date to human-readable."""
     if not iso_str:
         return ""
     try:
@@ -34,49 +25,35 @@ def _format_date(iso_str: str) -> str:
 
 
 def _prepare_content(note: dict) -> str:
-    """Extract and prepare note content for RichEditor.
-
-    Handles: None values, plain text, markdown, and existing HTML.
-    """
+    """Extract and prepare note content for RichEditor."""
     raw = note.get("content") or note.get("content_text") or ""
     if not raw:
         return ""
-    # Already HTML — pass through
     if "<" in raw and ("</" in raw or "<br" in raw or "<p>" in raw):
         return raw
-    # Plain text / markdown — convert to HTML
     try:
         import markdown
-        html = markdown.markdown(
-            raw,
-            extensions=["extra", "nl2br", "sane_lists"],
-        )
-        return html
+        return markdown.markdown(raw, extensions=["extra", "nl2br", "sane_lists"])
     except Exception:
-        # Fallback: wrap lines in <p> tags
         lines = raw.split("\n\n")
         return "".join(f"<p>{line}</p>" for line in lines if line.strip())
 
 
-# ── Editor Panel (CENTER OVERLAY) ─────────────────────────────────────────
-
-
 @ext.panel("editor", slot="center", title="Editor", icon="Edit")
 async def notes_editor(ctx, note_id: str = "", **kwargs):
-    """Note editor — opens as center overlay with RichEditor."""
     uid, tid = _user_id(ctx), _tenant_id(ctx)
 
     if not note_id:
         return ui.Empty(message="Select a note to edit", icon="FileText")
 
-    # ── Create new note ───────────────────────────────────────────────
+    # ── Create new note ───────────────────────────────────────────────────
     if note_id == "new":
         try:
-            result = await _api_post("/notes", {
+            result = await _api_post(ctx, "/notes", {
                 "user_id": uid, "tenant_id": tid,
                 "title": "Untitled", "content_text": "",
             })
-            note = result.get("note", {})
+            note    = result.get("note", {})
             note_id = note.get("id", "")
             if not note_id:
                 return ui.Error(message="Failed to create note")
@@ -84,57 +61,66 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
             return ui.Error(message=f"Failed to create note: {e}")
     else:
         try:
-            data = await _api_get(f"/notes/{note_id}", {"user_id": uid})
+            data = await _api_get(ctx, f"/notes/{note_id}", {"user_id": uid})
             note = data.get("note", {})
         except Exception as e:
-            log.warning("Editor: failed to fetch note %s: %s", note_id, e)
+            log.warning("editor: failed to fetch note %s: %s", note_id, e)
             return ui.Error(
                 message=f"Could not load note: {e}",
                 retry=ui.Call("__panel__editor", note_id=note_id),
             )
 
-    title = note.get("title", "Untitled")
+    title        = note.get("title", "Untitled")
     content_html = _prepare_content(note)
-    word_count = note.get("word_count", 0)
-    is_pinned = note.get("is_pinned", False)
-    is_archived = note.get("is_archived", False)
-    tags = note.get("tags", [])
-    created = _format_date(note.get("created_at", ""))
-    updated = _format_date(note.get("updated_at", ""))
+    word_count   = note.get("word_count", 0)
+    is_pinned    = note.get("is_pinned", False)
+    is_archived  = note.get("is_archived", False)
+    tags         = note.get("tags", [])
+    created      = _format_date(note.get("created_at", ""))
+    updated      = _format_date(note.get("updated_at", ""))
 
+    # ── Cached sidebar data ───────────────────────────────────────────────
+    all_tags: list = []
     try:
-        tags_data = await _api_get("/notes/tags", {"user_id": uid, "tenant_id": tid})
-        all_tags = tags_data.get("tags", [])
-    except Exception:
-        all_tags = []
+        async def _load_tags():
+            data = await _api_get(ctx, "/notes/tags", {"user_id": uid, "tenant_id": tid})
+            return TagsCacheEntry(tags=data.get("tags", []))
 
+        tags_entry = await ctx.cache.get_or_fetch(
+            f"tags:{uid}", TagsCacheEntry, ttl_seconds=120, fetcher=_load_tags,
+        )
+        all_tags = tags_entry.tags
+    except Exception:
+        pass
+
+    folders: list = []
     try:
-        folders_data = await _api_get("/folders", {"user_id": uid, "tenant_id": tid})
-        folders = folders_data.get("folders", [])
+        async def _load_folders():
+            data = await _api_get(ctx, "/folders", {"user_id": uid, "tenant_id": tid})
+            return FoldersCacheEntry(folders=data.get("folders", []))
+
+        folders_entry = await ctx.cache.get_or_fetch(
+            f"folders:{uid}", FoldersCacheEntry, ttl_seconds=60, fetcher=_load_folders,
+        )
+        folders = folders_entry.folders
     except Exception:
-        folders = []
+        pass
 
-    try:
-        att_data = await _api_get(f"/notes/{note_id}/attachments", {"user_id": uid})
-        attachments = att_data.get("attachments", [])
-    except Exception:
-        attachments = []
-
-    # ── Action bar (sticky) ───────────────────────────────────────────
-    pin_label = "Unpin" if is_pinned else "Pin"
-    pin_icon = "PinOff" if is_pinned else "Pin"
-
+    # ── Action bar ────────────────────────────────────────────────────────
+    pin_label    = "Unpin" if is_pinned else "Pin"
+    pin_icon     = "PinOff" if is_pinned else "Pin"
     archive_label = "Unarchive" if is_archived else "Archive"
     archive_icon  = "ArchiveRestore" if is_archived else "Archive"
     archive_field = "unarchive" if is_archived else "archive"
 
     more_menu = ui.Menu(
         items=[
-            {"label": "Duplicate",       "icon": "Copy",           "on_click": ui.Call("duplicate_note",   note_id=note_id)},
-            {"label": "Export Markdown", "icon": "FileDown",       "on_click": ui.Call("export_markdown",  note_id=note_id)},
+            {"label": "Duplicate",       "icon": "Copy",     "on_click": ui.Call("duplicate_note",  note_id=note_id)},
+            {"label": "Export Markdown", "icon": "FileDown", "on_click": ui.Call("export_markdown", note_id=note_id)},
             {"separator": True},
-            {"label": archive_label,     "icon": archive_icon,     "on_click": ui.Call("note_save", note_id=note_id, field=archive_field)},
-            {"label": "Delete",          "icon": "Trash2",         "on_click": ui.Call("delete_note",      note_id=note_id)},
+            {"label": archive_label,     "icon": archive_icon,
+             "on_click": ui.Call("note_save", note_id=note_id, field=archive_field)},
+            {"label": "Delete",          "icon": "Trash2",   "on_click": ui.Call("delete_note", note_id=note_id)},
         ],
         trigger=ui.Button("", icon="MoreHorizontal", variant="ghost", size="sm"),
     )
@@ -145,9 +131,9 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         ui.Button(pin_label, icon=pin_icon, variant="outline", size="sm",
                   on_click=ui.Call("note_save", note_id=note_id, field="pin")),
         more_menu,
-    ], direction="horizontal", wrap=True, sticky=True)
+    ], direction="h", wrap=True, sticky=True)
 
-    # ── Title input ───────────────────────────────────────────────────
+    # ── Title ─────────────────────────────────────────────────────────────
     title_input = ui.Input(
         placeholder="Note title...",
         value=title,
@@ -155,7 +141,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         on_submit=ui.Call("note_save", note_id=note_id, field="title"),
     )
 
-    # ── Metadata (KeyValue for clean display) ─────────────────────────
+    # ── Folder selector ───────────────────────────────────────────────────
     current_folder_id = note.get("folder_id") or ""
     folder_options = [{"label": "No folder", "value": ""}] + [
         {"label": f["name"], "value": f["id"]} for f in folders
@@ -168,6 +154,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         on_change=ui.Call("note_save", note_id=note_id, field="folder"),
     )
 
+    # ── Metadata ──────────────────────────────────────────────────────────
     meta_pairs = []
     if word_count:
         meta_pairs.append({"key": "Words", "value": str(word_count)})
@@ -185,7 +172,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         on_change=ui.Call("note_save", note_id=note_id, field="tags"),
     )
 
-    # ── Rich Editor (auto-save on change, Ctrl+S explicit save) ───────
+    # ── Rich Editor ───────────────────────────────────────────────────────
     editor = ui.RichEditor(
         content=content_html,
         placeholder="Start writing...",

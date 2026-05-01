@@ -1,2 +1,2 @@
-imperal-sdk==3.5.0
+imperal-sdk==4.0.1
 html2text>=2024.0.0

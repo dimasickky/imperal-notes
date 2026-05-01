@@ -1,22 +1,24 @@
 """Notes · Duplicate and Export Markdown handlers."""
 from __future__ import annotations
 
-import html2text
 import urllib.parse
+
+import html2text
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from app import chat, ActionResult, _api_get, _api_post, require_user_id, _tenant_id
+from app import chat, ActionResult, NotesAPIError, _api_get, _api_post, require_user_id, _tenant_id
 from imperal_sdk import ui
 
 
 _h2t = html2text.HTML2Text()
 _h2t.ignore_links = False
 _h2t.ignore_images = True
-_h2t.body_width = 0  # no line wrapping
+_h2t.body_width = 0
 
 
 class NoteIdParams(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
+
     note_id: str = Field(
         default="", description="Note UUID",
         validation_alias=AliasChoices("note_id", "noteId", "id"),
@@ -26,8 +28,10 @@ class NoteIdParams(BaseModel):
 @chat.function(
     "duplicate_note",
     action_type="write",
+    chain_callable=True,
+    effects=["create:note"],
     event="notes.created",
-    description="Duplicate a note — copies title and content into a new note.",
+    description="Duplicate a note — copies title, content, folder, and tags into a new note.",
 )
 async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
     uid = require_user_id(ctx)
@@ -36,10 +40,10 @@ async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
         return ActionResult.error("note_id required")
 
     try:
-        data = await _api_get(f"/notes/{params.note_id}", {"user_id": uid})
+        data = await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": uid})
         note = data.get("note", {})
 
-        result = await _api_post("/notes", {
+        result = await _api_post(ctx, "/notes", {
             "user_id":      uid,
             "tenant_id":    tid,
             "title":        f"{note.get('title', 'Untitled')} (copy)",
@@ -52,6 +56,8 @@ async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
             data={"note_id": new_note.get("id"), "refresh_panels": ["sidebar"]},
             summary=f"Duplicated as '{new_note.get('title', '')}'",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"Duplicate failed: {e.status_code} {e.detail}")
     except Exception as e:
         return ActionResult.error(f"Duplicate failed: {e}")
 
@@ -59,7 +65,7 @@ async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
 @chat.function(
     "export_markdown",
     action_type="read",
-    description="Export a note as Markdown. Returns the converted content.",
+    description="Export a note as Markdown. Returns the converted content with a download button.",
 )
 async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
     uid = require_user_id(ctx)
@@ -67,12 +73,12 @@ async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
         return ActionResult.error("note_id required")
 
     try:
-        data = await _api_get(f"/notes/{params.note_id}", {"user_id": uid})
+        data = await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": uid})
         note = data.get("note", {})
 
         html = note.get("content_text") or note.get("content") or ""
         title = note.get("title", "Untitled")
-        tags = note.get("tags", [])
+        tags  = note.get("tags", [])
 
         md_parts = [f"# {title}"]
         if tags:
@@ -100,5 +106,7 @@ async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
             },
             summary=f"Exported '{title}' as Markdown",
         )
+    except NotesAPIError as e:
+        return ActionResult.error(f"Export failed: {e.status_code} {e.detail}")
     except Exception as e:
         return ActionResult.error(f"Export failed: {e}")
