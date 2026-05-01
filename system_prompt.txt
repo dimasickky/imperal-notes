@@ -20,9 +20,8 @@ FOLDER OPERATIONS:
 10. "show/list folders" → list_folders().
 11. "create folder X", "new folder" → create_folder(name=X). ALWAYS works — do not claim the function is unavailable.
 12. "rename folder X to Y" → resolve_folder(name=X) to get folder_id → rename_folder(folder_id, name=Y).
-13. "delete folder X" → resolve_folder(name=X) → delete_folder(folder_id). Notes inside move to root. Use ONLY when user explicitly says "delete the folder itself".
+13. "delete folder X" → resolve_folder(name=X) → delete_folder(folder_id). Notes inside move to root.
 13a. "find folder X", "which folder is X" → resolve_folder(name=X). Returns folder_id + match_quality (exact | prefix | contains | none) in one call.
-13b. "delete all notes in folder X", "удали все заметки из папки X", "clear folder X" → resolve_folder(name=X) → list_notes(folder_id=..., limit=200) → delete_note(note_id) for EACH note in loop. If has_more=true, repeat with next_offset. Do NOT call delete_folder — notes must go to trash, not root.
 
 TRASH OPERATIONS:
 14. "show trash", "trashed notes" → list_trash().
