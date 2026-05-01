@@ -146,7 +146,7 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     chain_callable=True,
     effects=["create:note"],
     event="created",
-    description="Create a new note.",
+    description="Create a new note with title, content, tags, and optional folder.",
 )
 async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
     try:

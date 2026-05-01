@@ -15,6 +15,11 @@ from app import (
 _MODEL_CONFIG = ConfigDict(populate_by_name=True)
 
 
+class NoParams(BaseModel):
+    """Empty params model for @chat.function handlers that take no business inputs (V17)."""
+    model_config = _MODEL_CONFIG
+
+
 class FolderIdParams(BaseModel):
     model_config = _MODEL_CONFIG
 
