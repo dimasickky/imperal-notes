@@ -4,30 +4,85 @@
   "version": "3.0.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
+  "icon": "icon.svg",
   "actions_explicit": true,
-  "capabilities": ["notes:read", "notes:write"],
+  "capabilities": [
+    "notes:read",
+    "notes:write"
+  ],
   "tools": [
     {
       "name": "tool_notes_chat",
       "description": "Personal notes assistant — create, read, update, delete, search, organize notes with folders and tags, move notes, manage trash",
-      "action_type": "read",
-      "chain_callable": false,
       "scopes": [],
-      "owner_chat_tool": null
+      "parameters": {
+        "message": {
+          "type": "string",
+          "required": false
+        },
+        "kwargs": {
+          "type": "string",
+          "required": true
+        }
+      }
     },
     {
       "name": "skeleton_refresh_notes",
-      "description": "Refresh note statistics: total count, pinned, trash, recent titles.",
-      "action_type": "read",
-      "chain_callable": false,
-      "scopes": ["notes:read"]
+      "description": "Note statistics: total count, pinned, trash, recent titles.",
+      "scopes": [],
+      "parameters": {}
     },
     {
       "name": "list_notes",
-      "description": "List notes (paginated). Returns up to `limit` rows per call (max 200). If `has_more` is true, call again with `offset=offset+limit`.",
+      "description": "List notes (paginated). Returns up to `limit` rows per call (max 200). If `has_more` is true, call again with `offset=offset+limit` to fetch the next page.",
       "action_type": "read",
       "chain_callable": false,
-      "scopes": ["notes:read"],
+      "effects": [],
+      "params_schema": {
+        "description": "List notes with optional filters.",
+        "properties": {
+          "limit": {
+            "default": 50,
+            "description": "Max notes per page (1-200). Use offset to paginate.",
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "description": "Pagination offset",
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "folder_id": {
+            "default": "",
+            "description": "Filter by folder UUID (not folder name).",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "search": {
+            "default": "",
+            "description": "Filter by text",
+            "title": "Search",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Filter by tag names (AND-match: a note must have all listed tags).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "title": "ListNotesParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -35,17 +90,69 @@
       "description": "Get full content of a note by ID.",
       "action_type": "read",
       "chain_callable": false,
-      "scopes": ["notes:read"],
+      "effects": [],
+      "params_schema": {
+        "description": "Target a specific note.",
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID. Required.",
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "title": "NoteIdParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
       "name": "create_note",
-      "description": "Create a new note.",
+      "description": "Create a new note with title, content, tags, and optional folder.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["create:note"],
-      "event": "notes.created",
-      "scopes": ["notes:write"],
+      "effects": [
+        "create:note"
+      ],
+      "params_schema": {
+        "description": "Create a new note.\n\n`title` and `content_text` both have safe defaults — handler-side\nnormalization decides what to do with empty values rather than\nPydantic rejecting the call. LLMs occasionally pass `content`,\n`body`, `text` instead of `content_text` — accepted via aliases.",
+        "properties": {
+          "title": {
+            "default": "",
+            "description": "Note title. Field name is 'title' — never the folder name.",
+            "title": "Title",
+            "type": "string"
+          },
+          "content_text": {
+            "default": "",
+            "description": "Note body text. Field name in tool calls is 'content_text' — never 'content', 'body', or 'text', though those are accepted as aliases.",
+            "title": "Content Text",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Tags list",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "folder_id": {
+            "default": "",
+            "description": "Folder UUID (NOT folder name; resolve via resolve_folder first).",
+            "title": "Folder Id",
+            "type": "string"
+          }
+        },
+        "title": "CreateNoteParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "created",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -53,9 +160,66 @@
       "description": "Update note title, content, tags, or pin status.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["update:note"],
-      "event": "notes.updated",
-      "scopes": ["notes:write"],
+      "effects": [
+        "update:note"
+      ],
+      "params_schema": {
+        "description": "Update an existing note.",
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID. Required.",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "description": "New title (omit to keep).",
+            "title": "Title",
+            "type": "string"
+          },
+          "content_text": {
+            "default": "",
+            "description": "New content (omit to keep).",
+            "title": "Content Text",
+            "type": "string"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "New tags (omit to keep).",
+            "title": "Tags"
+          },
+          "is_pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Pin status (omit to keep).",
+            "title": "Is Pinned"
+          }
+        },
+        "title": "UpdateNoteParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "updated",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -63,9 +227,31 @@
       "description": "Move note to a folder, or root with empty folder_id.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["update:note"],
-      "event": "notes.moved",
-      "scopes": ["notes:write"],
+      "effects": [
+        "update:note"
+      ],
+      "params_schema": {
+        "description": "Move note to a folder.",
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID to move. Required.",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "folder_id": {
+            "default": "",
+            "description": "Target folder UUID. Empty string moves to root.",
+            "title": "Folder Id",
+            "type": "string"
+          }
+        },
+        "title": "MoveNoteParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "moved",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -73,9 +259,25 @@
       "description": "Delete a note (moves to trash).",
       "action_type": "destructive",
       "chain_callable": true,
-      "effects": ["trash:note"],
-      "event": "notes.deleted",
-      "scopes": ["notes:write"],
+      "effects": [
+        "trash:note"
+      ],
+      "params_schema": {
+        "description": "Target a specific note.",
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID. Required.",
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "title": "NoteIdParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "deleted",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -83,17 +285,64 @@
       "description": "Permanently delete a note. Cannot be undone.",
       "action_type": "destructive",
       "chain_callable": true,
-      "effects": ["delete:note"],
-      "event": "notes.permanently_deleted",
-      "scopes": ["notes:write"],
+      "effects": [
+        "delete:note"
+      ],
+      "params_schema": {
+        "description": "Target a specific note.",
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID. Required.",
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "title": "NoteIdParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "permanently_deleted",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
       "name": "search_notes",
-      "description": "Full-text search across all notes (paginated, max 50 per page).",
+      "description": "Full-text search across all notes (paginated). Returns up to `limit` results per call (max 50). If `has_more` is true, call again with `offset=offset+limit` to fetch the next page. Do NOT claim to have searched all notes until `has_more` is false.",
       "action_type": "read",
       "chain_callable": false,
-      "scopes": ["notes:read"],
+      "effects": [],
+      "params_schema": {
+        "description": "Full-text search.",
+        "properties": {
+          "query": {
+            "default": "",
+            "description": "Search query. Required (non-empty).",
+            "title": "Query",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "description": "Max results per page (1-50). Use offset to paginate.",
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "description": "Pagination offset",
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          }
+        },
+        "title": "SearchNotesParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -101,15 +350,39 @@
       "description": "List all note folders.",
       "action_type": "read",
       "chain_callable": false,
-      "scopes": ["notes:read"],
+      "effects": [],
+      "params_schema": {
+        "description": "Empty params model for @chat.function handlers that take no business inputs (V17).",
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
       "name": "resolve_folder",
-      "description": "Resolve a folder by name (case-insensitive). Returns folder_id and match_quality.",
+      "description": "Resolve a folder by name (case-insensitive). Returns the folder_id plus match_quality ('exact' | 'prefix' | 'contains' | 'none'). Use this INSTEAD of list_folders+manual-match when you only need one folder — it's a single call and gives a stable ID across chain steps.",
       "action_type": "read",
       "chain_callable": false,
-      "scopes": ["notes:read"],
+      "effects": [],
+      "params_schema": {
+        "properties": {
+          "name": {
+            "default": "",
+            "description": "Folder name to resolve (case-insensitive, whitespace-trimmed). Required.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "ResolveFolderParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -117,9 +390,24 @@
       "description": "Create a new folder.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["create:folder"],
-      "event": "notes.folder_created",
-      "scopes": ["notes:write"],
+      "effects": [
+        "create:folder"
+      ],
+      "params_schema": {
+        "properties": {
+          "name": {
+            "default": "",
+            "description": "Folder name. Required.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "CreateFolderParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "folder_created",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -127,9 +415,30 @@
       "description": "Rename an existing folder.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["update:folder"],
-      "event": "notes.folder_renamed",
-      "scopes": ["notes:write"],
+      "effects": [
+        "update:folder"
+      ],
+      "params_schema": {
+        "properties": {
+          "folder_id": {
+            "default": "",
+            "description": "Folder UUID to rename. Required.",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "description": "New folder name. Required.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "RenameFolderParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "folder_renamed",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -137,9 +446,24 @@
       "description": "Delete a folder (notes move to root).",
       "action_type": "destructive",
       "chain_callable": true,
-      "effects": ["delete:folder"],
-      "event": "notes.folder_deleted",
-      "scopes": ["notes:write"],
+      "effects": [
+        "delete:folder"
+      ],
+      "params_schema": {
+        "properties": {
+          "folder_id": {
+            "default": "",
+            "description": "Folder UUID. Required.",
+            "title": "Folder Id",
+            "type": "string"
+          }
+        },
+        "title": "FolderIdParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "folder_deleted",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -147,7 +471,16 @@
       "description": "List all notes in trash.",
       "action_type": "read",
       "chain_callable": false,
-      "scopes": ["notes:read"],
+      "effects": [],
+      "params_schema": {
+        "description": "Empty params model for @chat.function handlers that take no business inputs (V17).",
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -155,9 +488,24 @@
       "description": "Restore a note from trash.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["update:note"],
-      "event": "notes.restored",
-      "scopes": ["notes:write"],
+      "effects": [
+        "update:note"
+      ],
+      "params_schema": {
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID to restore. Required.",
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "title": "RestoreNoteParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "restored",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -165,9 +513,18 @@
       "description": "Permanently delete all trashed notes.",
       "action_type": "destructive",
       "chain_callable": true,
-      "effects": ["delete:note"],
-      "event": "notes.emptied",
-      "scopes": ["notes:write"],
+      "effects": [
+        "delete:note"
+      ],
+      "params_schema": {
+        "description": "Empty params model for @chat.function handlers that take no business inputs (V17).",
+        "properties": {},
+        "title": "NoParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "emptied",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -175,9 +532,56 @@
       "description": "Save a note field from the editor panel (title, content, tags, folder, pin, archive).",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["update:note"],
-      "event": "notes.updated",
-      "scopes": ["notes:write"],
+      "effects": [
+        "update:note"
+      ],
+      "params_schema": {
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID. Required.",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "field": {
+            "default": "",
+            "description": "Field to save: title | content | tags | folder | archive | unarchive | pin",
+            "title": "Field",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "description": "New title (when field=title)",
+            "title": "Title",
+            "type": "string"
+          },
+          "content_text": {
+            "default": "",
+            "description": "HTML content (when field=content)",
+            "title": "Content Text",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Tag list (when field=tags)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "folder_id": {
+            "default": "",
+            "description": "Folder UUID or empty string to remove (when field=folder)",
+            "title": "Folder Id",
+            "type": "string"
+          }
+        },
+        "title": "NoteSaveParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "updated",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -185,8 +589,29 @@
       "description": "Upload a file attachment to a note.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["create:attachment"],
-      "scopes": ["notes:write"],
+      "effects": [
+        "create:attachment"
+      ],
+      "params_schema": {
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "files": {
+            "default": null,
+            "description": "FileUpload payload (list[dict] with data_base64/name/content_type)",
+            "title": "Files"
+          }
+        },
+        "title": "AttachmentUploadParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "attachment.uploaded",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -194,8 +619,30 @@
       "description": "Delete a file attachment from a note.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["delete:attachment"],
-      "scopes": ["notes:write"],
+      "effects": [
+        "delete:attachment"
+      ],
+      "params_schema": {
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "att_id": {
+            "default": "",
+            "description": "Attachment UUID",
+            "title": "Att Id",
+            "type": "string"
+          }
+        },
+        "title": "AttachmentDeleteParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "attachment.deleted",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -203,9 +650,24 @@
       "description": "Duplicate a note — copies title, content, folder, and tags into a new note.",
       "action_type": "write",
       "chain_callable": true,
-      "effects": ["create:note"],
+      "effects": [
+        "create:note"
+      ],
+      "params_schema": {
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID",
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "title": "NoteIdParams",
+        "type": "object"
+      },
+      "return_schema": {},
       "event": "notes.created",
-      "scopes": ["notes:write"],
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
     {
@@ -213,39 +675,73 @@
       "description": "Export a note as Markdown. Returns the converted content with a download button.",
       "action_type": "read",
       "chain_callable": false,
-      "scopes": ["notes:read"],
+      "effects": [],
+      "params_schema": {
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID",
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "title": "NoteIdParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "",
+      "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
-    },
-    {
-      "name": "__panel__sidebar",
-      "description": "Panel: Notes",
-      "synthetic": true,
-      "scopes": [],
-      "parameters": {"params": {"type": "string", "required": true}}
-    },
-    {
-      "name": "__panel__editor",
-      "description": "Panel: Editor",
-      "synthetic": true,
-      "scopes": [],
-      "parameters": {"params": {"type": "string", "required": true}}
     }
   ],
-  "events": {
-    "emits": [
-      {"type": "notes.created"},
-      {"type": "notes.updated"},
-      {"type": "notes.deleted"},
-      {"type": "notes.permanently_deleted"},
-      {"type": "notes.moved"},
-      {"type": "notes.restored"},
-      {"type": "notes.emptied"},
-      {"type": "notes.folder_created"},
-      {"type": "notes.folder_renamed"},
-      {"type": "notes.folder_deleted"}
-    ]
-  },
   "signals": [],
   "schedules": [],
-  "required_scopes": ["notes:read", "notes:write"]
+  "required_scopes": [],
+  "icon_size_bytes": 379,
+  "events": {
+    "subscribes": [],
+    "emits": [
+      {
+        "type": "notes.folder_deleted"
+      },
+      {
+        "type": "notes.folder_renamed"
+      },
+      {
+        "type": "notes.folder_created"
+      },
+      {
+        "type": "notes.emptied"
+      },
+      {
+        "type": "notes.restored"
+      },
+      {
+        "type": "notes.moved"
+      },
+      {
+        "type": "notes.permanently_deleted"
+      },
+      {
+        "type": "notes.deleted"
+      },
+      {
+        "type": "notes.updated"
+      },
+      {
+        "type": "notes.created"
+      }
+    ]
+  },
+  "lifecycle": {
+    "on_install": true,
+    "health_check": {
+      "interval_sec": 60
+    }
+  },
+  "lifecycle_hooks": {
+    "on_install": {
+      "signature": "(ctx) -> 'None'"
+    }
+  }
 }
