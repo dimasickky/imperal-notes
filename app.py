@@ -120,7 +120,7 @@ def _tenant_id(ctx) -> str:
 
 ext = Extension(
     "notes",
-    version="3.0.0",
+    version="3.1.0",
     capabilities=["notes:read", "notes:write"],
     display_name="Notes",
     description=(
@@ -158,6 +158,7 @@ class FolderStatsCacheEntry(BaseModel):
 @ext.emits("notes.moved")
 @ext.emits("notes.restored")
 @ext.emits("notes.emptied")
+@ext.emits("notes.bulk_deleted")
 @ext.emits("notes.folder_created")
 @ext.emits("notes.folder_renamed")
 @ext.emits("notes.folder_deleted")

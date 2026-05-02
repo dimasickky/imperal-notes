@@ -31,7 +31,7 @@ from app import (  # noqa: E402
 )
 from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
-    CreateNoteParams, ListNotesParams, MoveNoteParams,
+    CreateNoteParams, DeleteNotesFromFolderParams, ListNotesParams, MoveNoteParams,
     NoteIdParams, SearchNotesParams, UpdateNoteParams,
 )
 
@@ -292,6 +292,107 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note permanently deleted")
     except NotesAPIError as e:
         return ActionResult.error(f"permanent_delete_note backend returned {e.status_code}: {e.detail}")
+    except Exception as e:
+        return ActionResult.error(str(e))
+
+
+_BULK_PAGE = 200  # notes per fetch page (backend max)
+_BULK_MAX  = 500  # safety cap — refuse to process more than this in one call
+
+
+@chat.function(
+    "delete_notes_from_folder",
+    action_type="destructive",
+    chain_callable=True,
+    effects=["trash:note", "delete:note"],
+    event="bulk_deleted",
+    description=(
+        "Delete ALL notes in a folder (bulk). By default moves them to trash; "
+        "pass permanent=true to permanently delete instead. "
+        "Use resolve_folder first if you only have the folder name, not its UUID."
+    ),
+)
+async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) -> ActionResult:
+    try:
+        if not params.folder_id.strip():
+            return ActionResult.error(
+                "folder_id is required. Use resolve_folder first to get the UUID from a folder name."
+            )
+        uid           = require_user_id(ctx)
+        tenant_id     = _tenant_id(ctx)
+        permanent_str = "true" if params.permanent else "false"
+
+        # ── Collect all note IDs in folder (paginate until exhausted or cap) ──
+        note_ids: list[str] = []
+        offset    = 0
+        truncated = False
+
+        while True:
+            resp = await _api_get(ctx, "/notes", {
+                "user_id":   uid,
+                "tenant_id": tenant_id,
+                "folder_id": params.folder_id,
+                "limit":     _BULK_PAGE,
+                "offset":    offset,
+            })
+            page = resp.get("notes", [])
+            note_ids.extend(n["id"] for n in page)
+
+            if len(note_ids) >= _BULK_MAX:
+                truncated = True
+                note_ids  = note_ids[:_BULK_MAX]
+                break
+
+            total_count = resp.get("total_count")
+            if total_count is not None:
+                has_more = (offset + len(page)) < int(total_count)
+            else:
+                has_more = len(page) == _BULK_PAGE
+
+            if not has_more:
+                break
+            offset += len(page)
+
+        if not note_ids:
+            return ActionResult.success(
+                data={"deleted_count": 0, "folder_id": params.folder_id,
+                      "permanent": params.permanent},
+                summary="No notes in folder — nothing to delete",
+            )
+
+        # ── Delete each note, collect errors ──────────────────────────
+        deleted = 0
+        errors  = 0
+        for note_id in note_ids:
+            try:
+                await _api_delete(ctx, f"/notes/{note_id}",
+                                  {"user_id": uid, "permanent": permanent_str})
+                deleted += 1
+            except NotesAPIError as exc:
+                log.warning("bulk delete: skip note_id=%s err=%s", note_id, exc)
+                errors += 1
+
+        action  = "permanently deleted" if params.permanent else "moved to trash"
+        summary = f"{deleted} note(s) {action}"
+        if errors:
+            summary += f" ({errors} failed)"
+        if truncated:
+            summary += f" (capped at {_BULK_MAX} — folder may still contain more notes)"
+
+        return ActionResult.success(
+            data={
+                "deleted_count": deleted,
+                "error_count":   errors,
+                "folder_id":     params.folder_id,
+                "permanent":     params.permanent,
+                "truncated":     truncated,
+            },
+            summary=summary,
+        )
+    except NotesAPIError as e:
+        return ActionResult.error(
+            f"delete_notes_from_folder backend returned {e.status_code}: {e.detail}"
+        )
     except Exception as e:
         return ActionResult.error(str(e))
 
