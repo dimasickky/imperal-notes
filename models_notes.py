@@ -186,3 +186,24 @@ class SearchNotesParams(BaseModel):
         default=0, ge=0, description="Pagination offset",
         validation_alias=AliasChoices("offset", "skip"),
     )
+
+
+class DeleteNotesFromFolderParams(BaseModel):
+    """Bulk-delete all notes in a folder."""
+    model_config = _MODEL_CONFIG
+
+    folder_id: str = Field(
+        default="",
+        description=(
+            "Folder UUID. Required — use resolve_folder first if you only have the name."
+        ),
+        validation_alias=AliasChoices("folder_id", "folder", "folderId"),
+    )
+    permanent: bool = Field(
+        default=False,
+        description=(
+            "If true, permanently delete all notes (cannot be undone). "
+            "If false (default), move to trash."
+        ),
+        validation_alias=AliasChoices("permanent", "hard_delete", "force_delete"),
+    )

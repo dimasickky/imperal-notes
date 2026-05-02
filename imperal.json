@@ -1,7 +1,7 @@
 {
   "manifest_schema_version": 3,
   "app_id": "notes",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -303,6 +303,39 @@
       },
       "return_schema": {},
       "event": "permanently_deleted",
+      "scopes": [],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "delete_notes_from_folder",
+      "description": "Delete ALL notes in a folder (bulk). By default moves them to trash; pass permanent=true to permanently delete instead. Use resolve_folder first if you only have the folder name, not its UUID.",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": [
+        "trash:note",
+        "delete:note"
+      ],
+      "params_schema": {
+        "description": "Bulk-delete all notes in a folder.",
+        "properties": {
+          "folder_id": {
+            "default": "",
+            "description": "Folder UUID. Required — use resolve_folder first if you only have the name.",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "permanent": {
+            "default": false,
+            "description": "If true, permanently delete all notes (cannot be undone). If false (default), move to trash.",
+            "title": "Permanent",
+            "type": "boolean"
+          }
+        },
+        "title": "DeleteNotesFromFolderParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "bulk_deleted",
       "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },
@@ -709,6 +742,9 @@
       },
       {
         "type": "notes.folder_created"
+      },
+      {
+        "type": "notes.bulk_deleted"
       },
       {
         "type": "notes.emptied"
