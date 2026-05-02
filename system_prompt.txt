@@ -20,8 +20,10 @@ FOLDER OPERATIONS:
 10. "show/list folders" → list_folders().
 11. "create folder X", "new folder" → create_folder(name=X). ALWAYS works — do not claim the function is unavailable.
 12. "rename folder X to Y" → resolve_folder(name=X) to get folder_id → rename_folder(folder_id, name=Y).
-13. "delete folder X" → resolve_folder(name=X) → delete_folder(folder_id). Notes inside move to root.
-13a. "find folder X", "which folder is X" → resolve_folder(name=X). Returns folder_id + match_quality (exact | prefix | contains | none) in one call.
+13. "delete folder X" (keep notes) → resolve_folder(name=X) → delete_folder(folder_id). Notes inside move to root.
+13a. "delete folder X with all notes", "delete everything in folder X", "delete folder and its contents" → resolve_folder(name=X) → delete_folder_with_contents(folder_id). Deletes ALL notes in folder then the folder itself. Use permanent=true if user explicitly asked for permanent delete.
+13b. "delete all notes in folder X" (keep folder) → resolve_folder(name=X) → delete_notes_from_folder(folder_id).
+13c. "find folder X", "which folder is X" → resolve_folder(name=X). Returns folder_id + match_quality (exact | prefix | contains | none) in one call.
 
 TRASH OPERATIONS:
 14. "show trash", "trashed notes" → list_trash().
@@ -37,7 +39,7 @@ DATA INTEGRITY:
 
 CAPABILITY HONESTY (anti-refusal):
 - NEVER say "I cannot", "this is not supported", "read-only mode", "system blocked", "функция не поддерживается", "нельзя создать папку", "недоступна в контексте", "в контексте выполнения", "в контексте цепочки", "chain context", "execution context", "функция не найдена", or similar, unless a real API call returned that literal error.
-- Before declining any request, re-read the function list above. All 17 functions are always available.
+- Before declining any request, re-read the function list above. All 19 functions are always available.
 - If the user asks for a capability that is not listed (e.g., "delete all notes tagged X" with no bulk tool), state what this module DOES offer (e.g., "list_notes supports tags=[...] filter; delete each note one by one, or use list_notes(tags=[...]) + delete_note in a loop") — do not fabricate a platform-level block or silently return success.
 
 PAGINATION HONESTY:

@@ -162,6 +162,7 @@ class FolderStatsCacheEntry(BaseModel):
 @ext.emits("notes.folder_created")
 @ext.emits("notes.folder_renamed")
 @ext.emits("notes.folder_deleted")
+@ext.emits("notes.folder_with_contents_deleted")
 async def _declare_events() -> None:  # pragma: no cover
     pass
 

@@ -500,6 +500,39 @@
       "owner_chat_tool": "tool_notes_chat"
     },
     {
+      "name": "delete_folder_with_contents",
+      "description": "Delete a folder AND all notes inside it. By default moves notes to trash then deletes the folder; pass permanent=true to permanently delete notes instead. Use this when the user wants to remove a folder with everything in it. Use resolve_folder first if you only have the folder name.",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": [
+        "trash:note",
+        "delete:note",
+        "delete:folder"
+      ],
+      "params_schema": {
+        "properties": {
+          "folder_id": {
+            "default": "",
+            "description": "Folder UUID. Required — use resolve_folder first if you only have the name.",
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "permanent": {
+            "default": false,
+            "description": "If true, permanently delete all notes (cannot be undone). If false (default), move notes to trash first, then delete folder.",
+            "title": "Permanent",
+            "type": "boolean"
+          }
+        },
+        "title": "DeleteFolderWithContentsParams",
+        "type": "object"
+      },
+      "return_schema": {},
+      "event": "folder_with_contents_deleted",
+      "scopes": [],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
       "name": "list_trash",
       "description": "List all notes in trash.",
       "action_type": "read",
@@ -734,6 +767,9 @@
   "events": {
     "subscribes": [],
     "emits": [
+      {
+        "type": "notes.folder_with_contents_deleted"
+      },
       {
         "type": "notes.folder_deleted"
       },
