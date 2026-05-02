@@ -29,6 +29,24 @@ class FolderIdParams(BaseModel):
     )
 
 
+class DeleteFolderWithContentsParams(BaseModel):
+    model_config = _MODEL_CONFIG
+
+    folder_id: str = Field(
+        default="",
+        description="Folder UUID. Required — use resolve_folder first if you only have the name.",
+        validation_alias=AliasChoices("folder_id", "folder", "folderId", "id", "uuid"),
+    )
+    permanent: bool = Field(
+        default=False,
+        description=(
+            "If true, permanently delete all notes (cannot be undone). "
+            "If false (default), move notes to trash first, then delete folder."
+        ),
+        validation_alias=AliasChoices("permanent", "hard_delete", "force_delete"),
+    )
+
+
 class CreateFolderParams(BaseModel):
     model_config = _MODEL_CONFIG
 
@@ -225,6 +243,59 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
         )
     except NotesAPIError as e:
         return ActionResult.error(f"delete_folder backend returned {e.status_code}: {e.detail}")
+    except Exception as e:
+        return ActionResult.error(str(e))
+
+
+@chat.function(
+    "delete_folder_with_contents",
+    action_type="destructive",
+    chain_callable=True,
+    effects=["trash:note", "delete:note", "delete:folder"],
+    event="folder_with_contents_deleted",
+    description=(
+        "Delete a folder AND all notes inside it. "
+        "By default moves notes to trash then deletes the folder; "
+        "pass permanent=true to permanently delete notes instead. "
+        "Use this when the user wants to remove a folder with everything in it. "
+        "Use resolve_folder first if you only have the folder name."
+    ),
+)
+async def fn_delete_folder_with_contents(
+    ctx, params: DeleteFolderWithContentsParams,
+) -> ActionResult:
+    try:
+        if not params.folder_id.strip():
+            return ActionResult.error(
+                "folder_id is required. Use resolve_folder first to get the UUID from a folder name."
+            )
+        uid = require_user_id(ctx)
+
+        # Step 1: delete all notes in the folder via bulk endpoint
+        notes_resp = await _api_delete(ctx, "/notes/bulk", {
+            "user_id":   uid,
+            "folder_id": params.folder_id,
+            "permanent": "true" if params.permanent else "false",
+        })
+        deleted_count = notes_resp.get("deleted_count", 0)
+
+        # Step 2: delete the folder itself (now empty)
+        await _api_delete(ctx, f"/folders/{params.folder_id}", {"user_id": uid})
+
+        action = "permanently deleted" if params.permanent else "moved to trash"
+        return ActionResult.success(
+            data={
+                "folder_id":     params.folder_id,
+                "deleted_count": deleted_count,
+                "permanent":     params.permanent,
+                "refresh_panels": ["sidebar"],
+            },
+            summary=f"Folder deleted; {deleted_count} note(s) {action}",
+        )
+    except NotesAPIError as e:
+        return ActionResult.error(
+            f"delete_folder_with_contents backend returned {e.status_code}: {e.detail}"
+        )
     except Exception as e:
         return ActionResult.error(str(e))
 
