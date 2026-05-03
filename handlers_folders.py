@@ -277,8 +277,9 @@ async def fn_delete_folder_with_contents(
 ) -> ActionResult:
     try:
         folder_id = params.folder_id.strip()
-        if not folder_id and params.folder_name.strip():
-            folder_id = await _resolve_folder_name(ctx, params.folder_name) or ""
+        folder_name = getattr(params, 'folder_name', '') or ''
+        if not folder_id and folder_name.strip():
+            folder_id = await _resolve_folder_name(ctx, folder_name) or ""
         if not folder_id:
             return ActionResult.error(
                 "folder_id or folder_name is required. "
