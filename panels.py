@@ -20,8 +20,8 @@ log = logging.getLogger("notes")
         "on_event:"
         "notes.created,notes.updated,notes.deleted,notes.moved,"
         "notes.restored,notes.permanently_deleted,notes.emptied,"
-        "notes.folder_created,notes.folder_renamed,notes.folder_deleted,"
-        "notes.archived,notes.unarchived"
+        "notes.bulk_deleted,notes.folder_created,notes.folder_renamed,"
+        "notes.folder_deleted,notes.folder_with_contents_deleted"
     ),
 )
 async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",

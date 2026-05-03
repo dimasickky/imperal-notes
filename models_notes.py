@@ -195,9 +195,18 @@ class DeleteNotesFromFolderParams(BaseModel):
     folder_id: str = Field(
         default="",
         description=(
-            "Folder UUID. Required — use resolve_folder first if you only have the name."
+            "Folder UUID. Use if you already have it. "
+            "Otherwise pass folder_name — the UUID will be resolved automatically."
         ),
-        validation_alias=AliasChoices("folder_id", "folder", "folderId"),
+        validation_alias=AliasChoices("folder_id", "folderId"),
+    )
+    folder_name: str = Field(
+        default="",
+        description=(
+            "Folder display name (alternative to folder_id). "
+            "Pass the folder name and the UUID will be resolved automatically."
+        ),
+        validation_alias=AliasChoices("folder_name", "folder", "name"),
     )
     permanent: bool = Field(
         default=False,
