@@ -182,7 +182,7 @@ except ImportError:
 
 ext = Extension(
     "notes",
-    version="3.2.0",
+    version="3.3.0",
     capabilities=["notes:read", "notes:write"],
     display_name="Notes",
     description=(
