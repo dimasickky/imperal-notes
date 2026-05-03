@@ -27,7 +27,7 @@ from app import (  # noqa: E402
     chat, ActionResult,
     NotesAPIError,
     _api_get, _api_patch, _api_post, _api_delete,
-    require_user_id, _tenant_id, _resolve_folder_name,
+    require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name,
 )
 from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
@@ -305,20 +305,19 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     description=(
         "Delete ALL notes in a folder (bulk). By default moves them to trash; "
         "pass permanent=true to permanently delete instead. "
-        "Pass folder_id (UUID) if you have it, or folder_name (text) for auto-resolution — "
-        "no need to call resolve_folder separately."
+        "folder_id accepts a folder UUID OR a folder name — auto-resolved either way."
     ),
 )
 async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) -> ActionResult:
     try:
-        folder_id = params.folder_id.strip()
-        folder_name = getattr(params, 'folder_name', '') or ''
-        if not folder_id and folder_name.strip():
-            folder_id = await _resolve_folder_name(ctx, folder_name) or ""
+        raw = params.folder_id.strip()
+        folder_name_fallback = getattr(params, 'folder_name', '') or ''
+        folder_id = await _resolve_folder_id_or_name(ctx, raw) if raw else ""
+        if not folder_id and folder_name_fallback.strip():
+            folder_id = await _resolve_folder_name(ctx, folder_name_fallback) or ""
         if not folder_id:
             return ActionResult.error(
-                "folder_id or folder_name is required. "
-                "Pass folder_name='<name>' and the UUID will be resolved automatically."
+                "Folder not found. Pass folder_id with the folder name or UUID."
             )
         resp = await _api_delete(ctx, "/notes/bulk", {
             "user_id":   require_user_id(ctx),

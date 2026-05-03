@@ -3,8 +3,14 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 from pydantic import BaseModel
+
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    re.IGNORECASE,
+)
 
 from imperal_sdk import Extension
 from imperal_sdk.chat import ChatExtension, ActionResult  # noqa: F401 — re-exported
@@ -117,6 +123,16 @@ def _tenant_id(ctx) -> str:
 
 
 # ─── Folder name resolver (shared by delete handlers) ────────────────────── #
+
+async def _resolve_folder_id_or_name(ctx, value: str) -> str:
+    """Accept a folder UUID or display name. Returns UUID or '' if not found."""
+    v = value.strip()
+    if not v:
+        return ""
+    if _UUID_RE.match(v):
+        return v
+    return await _resolve_folder_name(ctx, v) or ""
+
 
 async def _resolve_folder_name(ctx, name: str) -> str | None:
     """Return folder UUID for a given display name (case-insensitive, fuzzy). None if not found."""
