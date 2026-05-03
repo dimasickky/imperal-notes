@@ -27,7 +27,7 @@ from app import (  # noqa: E402
     chat, ActionResult,
     NotesAPIError,
     _api_get, _api_patch, _api_post, _api_delete,
-    require_user_id, _tenant_id,
+    require_user_id, _tenant_id, _resolve_folder_name,
 )
 from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
@@ -305,24 +305,29 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     description=(
         "Delete ALL notes in a folder (bulk). By default moves them to trash; "
         "pass permanent=true to permanently delete instead. "
-        "Use resolve_folder first if you only have the folder name, not its UUID."
+        "Pass folder_id (UUID) if you have it, or folder_name (text) for auto-resolution — "
+        "no need to call resolve_folder separately."
     ),
 )
 async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) -> ActionResult:
     try:
-        if not params.folder_id.strip():
+        folder_id = params.folder_id.strip()
+        if not folder_id and params.folder_name.strip():
+            folder_id = await _resolve_folder_name(ctx, params.folder_name) or ""
+        if not folder_id:
             return ActionResult.error(
-                "folder_id is required. Use resolve_folder first to get the UUID from a folder name."
+                "folder_id or folder_name is required. "
+                "Pass folder_name='<name>' and the UUID will be resolved automatically."
             )
         resp = await _api_delete(ctx, "/notes/bulk", {
             "user_id":   require_user_id(ctx),
-            "folder_id": params.folder_id,
+            "folder_id": folder_id,
             "permanent": "true" if params.permanent else "false",
         })
         deleted = resp.get("deleted_count", 0)
         action  = "permanently deleted" if params.permanent else "moved to trash"
         return ActionResult.success(
-            data={"deleted_count": deleted, "folder_id": params.folder_id,
+            data={"deleted_count": deleted, "folder_id": folder_id,
                   "permanent": params.permanent},
             summary=f"{deleted} note(s) {action}" if deleted else "No notes in folder — nothing to delete",
         )

@@ -6,7 +6,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from app import (
     chat, ActionResult, NotesAPIError,
     _api_get, _api_post, _api_patch, _api_delete,
-    require_user_id, _tenant_id,
+    require_user_id, _tenant_id, _resolve_folder_name,
 )
 
 
@@ -34,8 +34,19 @@ class DeleteFolderWithContentsParams(BaseModel):
 
     folder_id: str = Field(
         default="",
-        description="Folder UUID. Required — use resolve_folder first if you only have the name.",
-        validation_alias=AliasChoices("folder_id", "folder", "folderId", "id", "uuid"),
+        description=(
+            "Folder UUID. Use if you already have it. "
+            "Otherwise pass folder_name — the UUID will be resolved automatically."
+        ),
+        validation_alias=AliasChoices("folder_id", "folderId", "id", "uuid"),
+    )
+    folder_name: str = Field(
+        default="",
+        description=(
+            "Folder display name (alternative to folder_id). "
+            "Pass the folder name and the UUID will be resolved automatically."
+        ),
+        validation_alias=AliasChoices("folder_name", "folder", "name"),
     )
     permanent: bool = Field(
         default=False,
@@ -255,37 +266,41 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     event="folder_with_contents_deleted",
     description=(
         "Delete a folder AND all notes inside it. "
+        "Pass folder_id (UUID) if you have it, or folder_name (text) for auto-resolution — "
+        "no need to call resolve_folder separately. "
         "By default moves notes to trash then deletes the folder; "
-        "pass permanent=true to permanently delete notes instead. "
-        "Use this when the user wants to remove a folder with everything in it. "
-        "Use resolve_folder first if you only have the folder name."
+        "pass permanent=true to permanently delete notes instead."
     ),
 )
 async def fn_delete_folder_with_contents(
     ctx, params: DeleteFolderWithContentsParams,
 ) -> ActionResult:
     try:
-        if not params.folder_id.strip():
+        folder_id = params.folder_id.strip()
+        if not folder_id and params.folder_name.strip():
+            folder_id = await _resolve_folder_name(ctx, params.folder_name) or ""
+        if not folder_id:
             return ActionResult.error(
-                "folder_id is required. Use resolve_folder first to get the UUID from a folder name."
+                "folder_id or folder_name is required. "
+                "Pass folder_name='<name>' and the UUID will be resolved automatically."
             )
         uid = require_user_id(ctx)
 
         # Step 1: delete all notes in the folder via bulk endpoint
         notes_resp = await _api_delete(ctx, "/notes/bulk", {
             "user_id":   uid,
-            "folder_id": params.folder_id,
+            "folder_id": folder_id,
             "permanent": "true" if params.permanent else "false",
         })
         deleted_count = notes_resp.get("deleted_count", 0)
 
         # Step 2: delete the folder itself (now empty)
-        await _api_delete(ctx, f"/folders/{params.folder_id}", {"user_id": uid})
+        await _api_delete(ctx, f"/folders/{folder_id}", {"user_id": uid})
 
         action = "permanently deleted" if params.permanent else "moved to trash"
         return ActionResult.success(
             data={
-                "folder_id":     params.folder_id,
+                "folder_id":     folder_id,
                 "deleted_count": deleted_count,
                 "permanent":     params.permanent,
                 "refresh_panels": ["sidebar"],

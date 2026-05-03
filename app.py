@@ -116,11 +116,34 @@ def _tenant_id(ctx) -> str:
     return "default"
 
 
+# ─── Folder name resolver (shared by delete handlers) ────────────────────── #
+
+async def _resolve_folder_name(ctx, name: str) -> str | None:
+    """Return folder UUID for a given display name (case-insensitive, fuzzy). None if not found."""
+    target = name.strip().lower()
+    if not target:
+        return None
+    try:
+        folders = (await _api_get(ctx, "/folders", {
+            "user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
+        })).get("folders", [])
+    except Exception:
+        return None
+    exact = next((f for f in folders if f["name"].strip().lower() == target), None)
+    if exact:
+        return exact["id"]
+    prefix = next((f for f in folders if f["name"].strip().lower().startswith(target)), None)
+    if prefix:
+        return prefix["id"]
+    contain = next((f for f in folders if target in f["name"].strip().lower()), None)
+    return contain["id"] if contain else None
+
+
 # ─── Extension ───────────────────────────────────────────────────────────── #
 
 ext = Extension(
     "notes",
-    version="3.1.0",
+    version="3.2.0",
     capabilities=["notes:read", "notes:write"],
     display_name="Notes",
     description=(
