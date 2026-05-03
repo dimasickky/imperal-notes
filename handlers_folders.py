@@ -6,7 +6,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from app import (
     chat, ActionResult, NotesAPIError,
     _api_get, _api_post, _api_patch, _api_delete,
-    require_user_id, _tenant_id, _resolve_folder_name,
+    require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name,
 )
 
 
@@ -266,8 +266,7 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     event="folder_with_contents_deleted",
     description=(
         "Delete a folder AND all notes inside it. "
-        "Pass folder_id (UUID) if you have it, or folder_name (text) for auto-resolution — "
-        "no need to call resolve_folder separately. "
+        "folder_id accepts a folder UUID OR a folder name — auto-resolved either way. "
         "By default moves notes to trash then deletes the folder; "
         "pass permanent=true to permanently delete notes instead."
     ),
@@ -276,14 +275,14 @@ async def fn_delete_folder_with_contents(
     ctx, params: DeleteFolderWithContentsParams,
 ) -> ActionResult:
     try:
-        folder_id = params.folder_id.strip()
-        folder_name = getattr(params, 'folder_name', '') or ''
-        if not folder_id and folder_name.strip():
-            folder_id = await _resolve_folder_name(ctx, folder_name) or ""
+        raw = params.folder_id.strip()
+        folder_name_fallback = getattr(params, 'folder_name', '') or ''
+        folder_id = await _resolve_folder_id_or_name(ctx, raw) if raw else ""
+        if not folder_id and folder_name_fallback.strip():
+            folder_id = await _resolve_folder_name(ctx, folder_name_fallback) or ""
         if not folder_id:
             return ActionResult.error(
-                "folder_id or folder_name is required. "
-                "Pass folder_name='<name>' and the UUID will be resolved automatically."
+                "Folder not found. Pass folder_id with the folder name or UUID."
             )
         uid = require_user_id(ctx)
 

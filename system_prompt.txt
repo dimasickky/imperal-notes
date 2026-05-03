@@ -21,8 +21,8 @@ FOLDER OPERATIONS:
 11. "create folder X", "new folder" → create_folder(name=X). ALWAYS works — do not claim the function is unavailable.
 12. "rename folder X to Y" → resolve_folder(name=X) to get folder_id → rename_folder(folder_id, name=Y).
 13. "delete folder X" (keep notes) → resolve_folder(name=X) → delete_folder(folder_id). Notes inside move to root.
-13a. "delete folder X with all notes", "delete everything in folder X", "delete folder and its contents" → delete_folder_with_contents(folder_name=X). Deletes ALL notes in folder then the folder itself. Use permanent=true if user explicitly asked for permanent delete. Pass folder_id instead of folder_name if you already have the UUID.
-13b. "delete all notes in folder X" (keep folder) → delete_notes_from_folder(folder_name=X). Pass folder_id instead if you already have the UUID.
+13a. "delete folder X with all notes", "delete everything in folder X", "delete folder and its contents" → delete_folder_with_contents(folder_id=X). folder_id accepts the folder name OR UUID — auto-resolved. Use permanent=true if user explicitly asked for permanent delete.
+13b. "delete all notes in folder X" (keep folder) → delete_notes_from_folder(folder_id=X). folder_id accepts the folder name OR UUID — auto-resolved.
 13c. "find folder X", "which folder is X" → resolve_folder(name=X). Returns folder_id + match_quality (exact | prefix | contains | none) in one call.
 
 TRASH OPERATIONS:
