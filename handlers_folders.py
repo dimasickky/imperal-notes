@@ -7,6 +7,7 @@ from app import (
     chat, ActionResult, NotesAPIError,
     _api_get, _api_post, _api_patch, _api_delete,
     require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name,
+    # _resolve_folder_name used by fn_resolve_folder below
 )
 
 
@@ -35,15 +36,10 @@ class DeleteFolderWithContentsParams(BaseModel):
     folder_id: str = Field(
         default="",
         description=(
-            "Folder UUID OR folder name — pass the folder name directly (e.g. 'химарь'), "
-            "it will be auto-resolved. Do NOT leave empty if you know the folder name."
+            "Folder UUID OR folder name — pass the name directly (e.g. 'химарь'), "
+            "it will be auto-resolved to UUID. Do NOT leave empty."
         ),
         validation_alias=AliasChoices("folder_id", "folder", "folderId", "id", "uuid", "name"),
-    )
-    folder_name: str = Field(
-        default="",
-        description="Folder display name (alternative to folder_id — auto-resolved).",
-        validation_alias=AliasChoices("folder_name"),
     )
     permanent: bool = Field(
         default=False,
@@ -272,11 +268,7 @@ async def fn_delete_folder_with_contents(
     ctx, params: DeleteFolderWithContentsParams,
 ) -> ActionResult:
     try:
-        raw = params.folder_id.strip()
-        folder_name_fallback = getattr(params, 'folder_name', '') or ''
-        folder_id = await _resolve_folder_id_or_name(ctx, raw) if raw else ""
-        if not folder_id and folder_name_fallback.strip():
-            folder_id = await _resolve_folder_name(ctx, folder_name_fallback) or ""
+        folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id.strip())
         if not folder_id:
             return ActionResult.error(
                 "Folder not found. Pass folder_id with the folder name or UUID."

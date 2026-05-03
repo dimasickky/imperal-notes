@@ -27,7 +27,7 @@ from app import (  # noqa: E402
     chat, ActionResult,
     NotesAPIError,
     _api_get, _api_patch, _api_post, _api_delete,
-    require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name,
+    require_user_id, _tenant_id, _resolve_folder_id_or_name,
 )
 from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
@@ -310,11 +310,7 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
 )
 async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) -> ActionResult:
     try:
-        raw = params.folder_id.strip()
-        folder_name_fallback = getattr(params, 'folder_name', '') or ''
-        folder_id = await _resolve_folder_id_or_name(ctx, raw) if raw else ""
-        if not folder_id and folder_name_fallback.strip():
-            folder_id = await _resolve_folder_name(ctx, folder_name_fallback) or ""
+        folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id.strip())
         if not folder_id:
             return ActionResult.error(
                 "Folder not found. Pass folder_id with the folder name or UUID."
