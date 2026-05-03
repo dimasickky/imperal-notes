@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.3.1] — 2026-05-04
+
+### Fixed
+
+- **Removed kernel PROJECTIONS bypass** — `app.py` was importing `imperal_kernel.orchestration.target_resolver.PROJECTIONS` directly and mutating it from extension code. This violates the Federal Extension Contract (extensions must use SDK primitives only). In chain context, the projection for `create_note` was injecting only `folder_id` from the previous step result, causing "Note must have a title or content" errors when the kernel tried to auto-invoke `create_note` downstream. Projections removed; the underlying kernel heuristic bug (`delete_notes_from_folder` → wrong field name `notes_from_folder_id`) is tracked separately as a kernel-side fix.
+- **`create_note` empty params** — system prompt now explicitly instructs the LLM to ask the user for title or content (in the conversation language) instead of calling `create_note` with empty params when no details are provided.
+
+---
+
 ## [3.3.0] — 2026-05-04
 
 ### Fixed
