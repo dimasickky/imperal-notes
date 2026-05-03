@@ -155,29 +155,6 @@ async def _resolve_folder_name(ctx, name: str) -> str | None:
     return contain["id"] if contain else None
 
 
-# ─── Kernel target projections ────────────────────────────────────────────── #
-# Kernel heuristic _derive_id_field_from_tool_name strips "delete_" prefix
-# from "delete_notes_from_folder" → "notes_from_folder_id" (wrong).
-# Register explicit projections so action_executor maps folder_id correctly.
-
-try:
-    from imperal_kernel.orchestration.target_resolver import PROJECTIONS as _PROJECTIONS
-
-    def _project_folder(item: dict, plan_args: dict | None) -> dict:
-        args = dict(plan_args or {})
-        folder_id = item.get("folder_id") or item.get("id") or item.get("uuid") or ""
-        if folder_id:
-            args["folder_id"] = str(folder_id)
-        return args
-
-    _PROJECTIONS[("notes", "delete_notes_from_folder")] = _project_folder
-    _PROJECTIONS[("notes", "delete_folder_with_contents")] = _project_folder
-    _PROJECTIONS[("notes", "create_note")] = _project_folder
-    _PROJECTIONS[("notes", "list_notes")] = _project_folder
-except ImportError:
-    pass
-
-
 # ─── Extension ───────────────────────────────────────────────────────────── #
 
 ext = Extension(
