@@ -6,6 +6,51 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.3.0] — 2026-05-04
+
+### Fixed
+
+- **Folder operations by name** — `delete_notes_from_folder` and `delete_folder_with_contents` now accept a folder name OR UUID in `folder_id`. `_resolve_folder_id_or_name` in `app.py` detects non-UUID input and auto-resolves via `GET /folders` (exact → prefix → contains match). No separate `resolve_folder` call required from the LLM.
+- **Kernel `PROJECTIONS` registration** — the kernel's `_derive_id_field_from_tool_name` heuristic incorrectly derives `notes_from_folder_id` from `delete_notes_from_folder` (strips `delete_` prefix, appends `_id`). Registered explicit projections for `delete_notes_from_folder`, `delete_folder_with_contents`, `create_note`, and `list_notes` so the `action_executor` AA_BRANCH path correctly maps `folder_id` from the resolved folder item instead of throwing an INTERNAL exception.
+- **`folder_id` field description** — updated in both `DeleteNotesFromFolderParams` and `DeleteFolderWithContentsParams` to explicitly state "UUID or folder name — auto-resolved". Prevents LLM from treating the field as UUID-only and passing empty value.
+- **`_UUID_RE` moved to `app.py`** — shared regex for UUID detection, used by `_resolve_folder_id_or_name`.
+
+### Changed
+
+- **`system_prompt.txt` routing rules 13a/13b** — updated to `folder_id=X` (name or UUID), removing the mandatory two-step `resolve_folder → delete` pattern. Both paths still work; direct name passing is now the primary.
+
+---
+
+## [3.2.0] — 2026-05-03
+
+### Added
+
+- **`delete_notes_from_folder` audit fixes** — sidebar refresh now triggers on `notes.bulk_deleted` and `notes.folder_with_contents_deleted` (previously missing); removed stale `notes.archived` / `notes.unarchived` from refresh trigger (events were never emitted).
+
+### Fixed
+
+- **`handlers_export.py`** — module-level `html2text.HTML2Text()` singleton replaced with `_make_h2t()` factory function; avoids shared mutable state across concurrent requests.
+- **`handlers_export.py`** — removed duplicate `NoteIdParams` class; now imports canonical version from `models_notes`.
+- **`main.py`** — added `models_notes` to `sys.modules` purge list so hot-reload correctly picks up model changes.
+- **`system_prompt.txt`** — function count corrected 19 → 23; `duplicate_note`, `export_markdown`, `note_save`, `upload_attachment`, `delete_attachment` documented.
+
+### Changed
+
+- **`requirements.txt`** — SDK pin bumped `4.0.1` → `4.1.0` (Pydantic feedback loop, runtime invariants).
+
+---
+
+## [3.1.0] — 2026-05-02
+
+### Added
+
+- **`delete_notes_from_folder`** — bulk-delete all notes in a folder via `DELETE /notes/bulk`. `permanent=false` moves to trash; `permanent=true` hard-deletes. Replaces the previous loop pattern.
+- **`delete_folder_with_contents`** — two-step atomic operation: (1) `DELETE /notes/bulk` for all notes in folder, (2) `DELETE /folders/{id}`. Needed because backend `DELETE /folders/{id}` only orphans notes (sets `folder_id=NULL`), it does not cascade-delete them.
+- **`DELETE /notes/bulk` backend endpoint** — added to `notes-api routes_notes.py`; accepts `user_id`, `folder_id`, `permanent` query params. Removes or trashes all non-trashed notes in the folder in a single DB operation.
+- **`system_prompt.txt` routing** — rules 13a (`delete_folder_with_contents`), 13b (`delete_notes_from_folder`), 13c (`resolve_folder`) added. Rule 13 clarified: `delete_folder` keeps notes (moves to root), does not cascade.
+
+---
+
 ## [3.0.0] — 2026-05-01
 
 ### Breaking
