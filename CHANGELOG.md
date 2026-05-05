@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.4.1] — 2026-05-05
+
+### Fixed
+
+- **Intent classifier anchoring** — `create_folder`, `rename_folder`, `resolve_folder` descriptions did not contain the word "notes". The intent classifier sees all tool descriptions from all extensions simultaneously with no extension-name context; generic descriptions like "Create a new folder." are ambiguous against tasks project/bucket concepts. Fixed by adding the "notes" qualifier: "Create a new notes folder.", "Rename an existing notes folder.", "Resolve a notes folder by name...".
+
+---
+
 ## [3.4.0] — 2026-05-05
 
 ### Changed
