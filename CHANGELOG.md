@@ -6,6 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.4.0] — 2026-05-05
+
+### Changed
+
+- **SDK upgraded to `imperal-sdk==4.1.2`** — picks up Pydantic feedback-loop (4.1.0), narration schema tightening (4.1.1), and `id_projection` chain dispatch (4.1.2).
+- **`id_projection` added to all compound-named chain functions** — fixes kernel chain-step target projection for names where the verb-prefix heuristic produced a non-existent field:
+  - `upload_attachment` → `id_projection="note_id"` (heuristic: `attachment_id` ✗)
+  - `delete_attachment` → `id_projection="note_id"` (heuristic: `attachment_id` → wrong alias)
+  - `delete_folder_with_contents` → `id_projection="folder_id"` (heuristic: `folder_with_contents_id` ✗)
+  - `permanent_delete_note` → `id_projection="note_id"` (heuristic strips "permanent" → `delete_note_id` ✗)
+  - `note_save` → `id_projection="note_id"` (heuristic strips "note" → `save_id` ✗)
+
+---
+
 ## [3.3.1] — 2026-05-04
 
 ### Fixed

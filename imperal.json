@@ -1,7 +1,7 @@
 {
   "manifest_schema_version": 3,
   "app_id": "notes",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -38,6 +38,7 @@
       "action_type": "read",
       "chain_callable": false,
       "effects": [],
+      "id_projection": "",
       "params_schema": {
         "description": "List notes with optional filters.",
         "properties": {
@@ -91,6 +92,7 @@
       "action_type": "read",
       "chain_callable": false,
       "effects": [],
+      "id_projection": "",
       "params_schema": {
         "description": "Target a specific note.",
         "properties": {
@@ -117,6 +119,7 @@
       "effects": [
         "create:note"
       ],
+      "id_projection": "",
       "params_schema": {
         "description": "Create a new note.\n\n`title` and `content_text` both have safe defaults — handler-side\nnormalization decides what to do with empty values rather than\nPydantic rejecting the call. LLMs occasionally pass `content`,\n`body`, `text` instead of `content_text` — accepted via aliases.",
         "properties": {
@@ -163,6 +166,7 @@
       "effects": [
         "update:note"
       ],
+      "id_projection": "",
       "params_schema": {
         "description": "Update an existing note.",
         "properties": {
@@ -230,6 +234,7 @@
       "effects": [
         "update:note"
       ],
+      "id_projection": "",
       "params_schema": {
         "description": "Move note to a folder.",
         "properties": {
@@ -262,6 +267,7 @@
       "effects": [
         "trash:note"
       ],
+      "id_projection": "",
       "params_schema": {
         "description": "Target a specific note.",
         "properties": {
@@ -288,6 +294,7 @@
       "effects": [
         "delete:note"
       ],
+      "id_projection": "note_id",
       "params_schema": {
         "description": "Target a specific note.",
         "properties": {
@@ -308,19 +315,20 @@
     },
     {
       "name": "delete_notes_from_folder",
-      "description": "Delete ALL notes in a folder (bulk). Pass folder_id with the folder name (e.g. 'химарь') or UUID — auto-resolved. By default moves to trash; pass permanent=true to permanently delete.",
+      "description": "Delete ALL notes in a folder (bulk). By default moves them to trash; pass permanent=true to permanently delete instead. folder_id accepts a folder UUID OR a folder name — auto-resolved either way.",
       "action_type": "destructive",
       "chain_callable": true,
       "effects": [
         "trash:note",
         "delete:note"
       ],
+      "id_projection": "",
       "params_schema": {
         "description": "Bulk-delete all notes in a folder.",
         "properties": {
           "folder_id": {
             "default": "",
-            "description": "Folder UUID OR folder name — pass the folder name directly (e.g. 'химарь'), it will be auto-resolved. Do NOT leave empty if you know the folder name.",
+            "description": "Folder UUID OR folder name — pass the name directly (e.g. 'химарь'), it will be auto-resolved to UUID. Do NOT leave empty.",
             "title": "Folder Id",
             "type": "string"
           },
@@ -345,6 +353,7 @@
       "action_type": "read",
       "chain_callable": false,
       "effects": [],
+      "id_projection": "",
       "params_schema": {
         "description": "Full-text search.",
         "properties": {
@@ -384,6 +393,7 @@
       "action_type": "read",
       "chain_callable": false,
       "effects": [],
+      "id_projection": "",
       "params_schema": {
         "description": "Empty params model for @chat.function handlers that take no business inputs (V17).",
         "properties": {},
@@ -401,6 +411,7 @@
       "action_type": "read",
       "chain_callable": false,
       "effects": [],
+      "id_projection": "",
       "params_schema": {
         "properties": {
           "name": {
@@ -426,6 +437,7 @@
       "effects": [
         "create:folder"
       ],
+      "id_projection": "",
       "params_schema": {
         "properties": {
           "name": {
@@ -451,6 +463,7 @@
       "effects": [
         "update:folder"
       ],
+      "id_projection": "",
       "params_schema": {
         "properties": {
           "folder_id": {
@@ -482,6 +495,7 @@
       "effects": [
         "delete:folder"
       ],
+      "id_projection": "",
       "params_schema": {
         "properties": {
           "folder_id": {
@@ -501,7 +515,7 @@
     },
     {
       "name": "delete_folder_with_contents",
-      "description": "Delete a folder AND all notes inside it. Pass folder_id with the folder name (e.g. 'химарь') or UUID — auto-resolved. By default moves notes to trash then deletes the folder; pass permanent=true to permanently delete.",
+      "description": "Delete a folder AND all notes inside it. folder_id accepts a folder UUID OR a folder name — auto-resolved either way. By default moves notes to trash then deletes the folder; pass permanent=true to permanently delete notes instead.",
       "action_type": "destructive",
       "chain_callable": true,
       "effects": [
@@ -509,11 +523,12 @@
         "delete:note",
         "delete:folder"
       ],
+      "id_projection": "folder_id",
       "params_schema": {
         "properties": {
           "folder_id": {
             "default": "",
-            "description": "Folder UUID OR folder name — pass the folder name directly (e.g. 'химарь'), it will be auto-resolved. Do NOT leave empty if you know the folder name.",
+            "description": "Folder UUID OR folder name — pass the name directly (e.g. 'химарь'), it will be auto-resolved to UUID. Do NOT leave empty.",
             "title": "Folder Id",
             "type": "string"
           },
@@ -538,6 +553,7 @@
       "action_type": "read",
       "chain_callable": false,
       "effects": [],
+      "id_projection": "",
       "params_schema": {
         "description": "Empty params model for @chat.function handlers that take no business inputs (V17).",
         "properties": {},
@@ -557,6 +573,7 @@
       "effects": [
         "update:note"
       ],
+      "id_projection": "",
       "params_schema": {
         "properties": {
           "note_id": {
@@ -582,6 +599,7 @@
       "effects": [
         "delete:note"
       ],
+      "id_projection": "",
       "params_schema": {
         "description": "Empty params model for @chat.function handlers that take no business inputs (V17).",
         "properties": {},
@@ -601,6 +619,7 @@
       "effects": [
         "update:note"
       ],
+      "id_projection": "note_id",
       "params_schema": {
         "properties": {
           "note_id": {
@@ -658,6 +677,7 @@
       "effects": [
         "create:attachment"
       ],
+      "id_projection": "note_id",
       "params_schema": {
         "properties": {
           "note_id": {
@@ -688,6 +708,7 @@
       "effects": [
         "delete:attachment"
       ],
+      "id_projection": "note_id",
       "params_schema": {
         "properties": {
           "note_id": {
@@ -719,11 +740,13 @@
       "effects": [
         "create:note"
       ],
+      "id_projection": "",
       "params_schema": {
+        "description": "Target a specific note.",
         "properties": {
           "note_id": {
             "default": "",
-            "description": "Note UUID",
+            "description": "Note UUID. Required.",
             "title": "Note Id",
             "type": "string"
           }
@@ -742,11 +765,13 @@
       "action_type": "read",
       "chain_callable": false,
       "effects": [],
+      "id_projection": "",
       "params_schema": {
+        "description": "Target a specific note.",
         "properties": {
           "note_id": {
             "default": "",
-            "description": "Note UUID",
+            "description": "Note UUID. Required.",
             "title": "Note Id",
             "type": "string"
           }

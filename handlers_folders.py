@@ -255,6 +255,7 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     "delete_folder_with_contents",
     action_type="destructive",
     chain_callable=True,
+    id_projection="folder_id",
     effects=["trash:note", "delete:note", "delete:folder"],
     event="folder_with_contents_deleted",
     description=(
