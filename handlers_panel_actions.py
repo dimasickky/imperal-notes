@@ -43,6 +43,7 @@ class NoteSaveParams(BaseModel):
     "note_save",
     action_type="write",
     chain_callable=True,
+    id_projection="note_id",
     effects=["update:note"],
     event="updated",
     description="Save a note field from the editor panel (title, content, tags, folder, pin, archive).",

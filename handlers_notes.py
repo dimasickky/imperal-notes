@@ -279,6 +279,7 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     "permanent_delete_note",
     action_type="destructive",
     chain_callable=True,
+    id_projection="note_id",
     effects=["delete:note"],
     event="permanently_deleted",
     description="Permanently delete a note. Cannot be undone.",
