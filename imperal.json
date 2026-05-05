@@ -407,7 +407,7 @@
     },
     {
       "name": "resolve_folder",
-      "description": "Resolve a folder by name (case-insensitive). Returns the folder_id plus match_quality ('exact' | 'prefix' | 'contains' | 'none'). Use this INSTEAD of list_folders+manual-match when you only need one folder — it's a single call and gives a stable ID across chain steps.",
+      "description": "Resolve a notes folder by name (case-insensitive). Returns the folder_id plus match_quality ('exact' | 'prefix' | 'contains' | 'none'). Use this INSTEAD of list_folders+manual-match when you only need one folder — it's a single call and gives a stable ID across chain steps.",
       "action_type": "read",
       "chain_callable": false,
       "effects": [],
@@ -431,7 +431,7 @@
     },
     {
       "name": "create_folder",
-      "description": "Create a new folder.",
+      "description": "Create a new notes folder.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [
@@ -457,7 +457,7 @@
     },
     {
       "name": "rename_folder",
-      "description": "Rename an existing folder.",
+      "description": "Rename an existing notes folder.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [

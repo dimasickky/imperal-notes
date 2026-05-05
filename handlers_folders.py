@@ -119,7 +119,7 @@ async def fn_list_folders(ctx, params: NoParams) -> ActionResult:
     "resolve_folder",
     action_type="read",
     description=(
-        "Resolve a folder by name (case-insensitive). Returns the folder_id "
+        "Resolve a notes folder by name (case-insensitive). Returns the folder_id "
         "plus match_quality ('exact' | 'prefix' | 'contains' | 'none'). Use "
         "this INSTEAD of list_folders+manual-match when you only need one "
         "folder — it's a single call and gives a stable ID across chain steps."
@@ -172,7 +172,7 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
     chain_callable=True,
     effects=["create:folder"],
     event="folder_created",
-    description="Create a new folder.",
+    description="Create a new notes folder.",
 )
 async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
     try:
@@ -202,7 +202,7 @@ async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
     chain_callable=True,
     effects=["update:folder"],
     event="folder_renamed",
-    description="Rename an existing folder.",
+    description="Rename an existing notes folder.",
 )
 async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
     try:
