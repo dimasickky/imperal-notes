@@ -6,8 +6,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from app import (
     chat, ActionResult, NotesAPIError,
     _api_get, _api_post, _api_patch, _api_delete,
-    require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name,
-    # _resolve_folder_name used by fn_resolve_folder below
+    require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name, _bad_id,
 )
 
 
@@ -206,19 +205,23 @@ async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
 )
 async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
     try:
-        if not params.folder_id.strip():
-            return ActionResult.error("Folder id is required. Find one with resolve_folder first.")
         if not params.name.strip():
             return ActionResult.error("New folder name must not be empty.")
+        folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id)
+        if not folder_id:
+            return ActionResult.error(
+                f"Folder '{params.folder_id}' not found. "
+                "Use list_folders() to see available folders."
+            )
         # the backend PATCH /folders/{id} reads name as a Query param, not body.
         await _api_patch(
             ctx,
-            f"/folders/{params.folder_id}",
+            f"/folders/{folder_id}",
             {"user_id": require_user_id(ctx), "name": params.name},
             {},
         )
         return ActionResult.success(
-            data={"folder_id": params.folder_id, "name": params.name,
+            data={"folder_id": folder_id, "name": params.name,
                   "refresh_panels": ["sidebar"]},
             summary=f"Folder renamed to: {params.name}",
         )
@@ -238,11 +241,15 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
 )
 async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     try:
-        if not params.folder_id.strip():
-            return ActionResult.error("Folder id is required. Find one with resolve_folder first.")
-        await _api_delete(ctx, f"/folders/{params.folder_id}", {"user_id": require_user_id(ctx)})
+        folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id)
+        if not folder_id:
+            return ActionResult.error(
+                f"Folder '{params.folder_id}' not found. "
+                "Use list_folders() to see available folders."
+            )
+        await _api_delete(ctx, f"/folders/{folder_id}", {"user_id": require_user_id(ctx)})
         return ActionResult.success(
-            data={"folder_id": params.folder_id, "refresh_panels": ["sidebar"]},
+            data={"folder_id": folder_id, "refresh_panels": ["sidebar"]},
             summary="Folder deleted, notes moved to root",
         )
     except NotesAPIError as e:
@@ -314,19 +321,31 @@ async def fn_delete_folder_with_contents(
 )
 async def fn_list_trash(ctx, params: NoParams) -> ActionResult:
     try:
-        notes = (await _api_get(ctx, "/notes", {
-            "user_id":   require_user_id(ctx),
-            "tenant_id": _tenant_id(ctx),
+        resp = await _api_get(ctx, "/notes", {
+            "user_id":    require_user_id(ctx),
+            "tenant_id":  _tenant_id(ctx),
             "is_trashed": True,
-            "limit":     50,
-        })).get("notes", [])
+            "limit":      50,
+        })
+        notes = resp.get("notes", [])
+        total_count = resp.get("total_count")
+        has_more = resp.get("has_more", False)
         return ActionResult.success(
-            data={"trash_notes": [
-                {"note_id": n["id"], "title": n["title"],
-                 "word_count": n.get("word_count", 0), "tags": n.get("tags", [])}
-                for n in notes
-            ], "total": len(notes)},
-            summary=f"Trash contains {len(notes)} note(s)",
+            data={
+                "trash_notes": [
+                    {"note_id": n["id"], "title": n["title"],
+                     "word_count": n.get("word_count", 0), "tags": n.get("tags", [])}
+                    for n in notes
+                ],
+                "page_size":   len(notes),
+                "total_count": int(total_count) if total_count is not None else None,
+                "has_more":    has_more,
+            },
+            summary=(
+                f"Trash: {len(notes)} note(s)"
+                + (f" of {total_count} total" if total_count is not None else "")
+                + ("; more available — call list_trash again with offset" if has_more else "")
+            ),
         )
     except NotesAPIError as e:
         return ActionResult.error(f"list_trash backend returned {e.status_code}: {e.detail}")
@@ -344,8 +363,8 @@ async def fn_list_trash(ctx, params: NoParams) -> ActionResult:
 )
 async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
     try:
-        if not params.note_id.strip():
-            return ActionResult.error("Note id is required to restore. Find one with list_trash first.")
+        if err := _bad_id(params.note_id):
+            return ActionResult.error(err)
         data = await _api_patch(ctx, f"/notes/{params.note_id}",
                                 {"user_id": require_user_id(ctx)},
                                 {"is_trashed": False})

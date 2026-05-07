@@ -12,6 +12,19 @@ _UUID_RE = re.compile(
     re.IGNORECASE,
 )
 
+
+def _bad_id(note_id: str) -> str | None:
+    """Return error message if note_id is not a valid UUID4, else None."""
+    if not note_id or not note_id.strip():
+        return "note_id is required. Call list_notes() or search_notes() first to get real IDs."
+    if not _UUID_RE.match(note_id.strip()):
+        return (
+            f"'{note_id}' is not a valid note ID. Note IDs are UUID4 strings "
+            "(e.g. '3f2504e0-4f89-11d3-9a0c-0305e82c3301'). "
+            "Call list_notes() or search_notes() first to get real IDs — never guess them."
+        )
+    return None
+
 from imperal_sdk import Extension
 from imperal_sdk.chat import ChatExtension, ActionResult  # noqa: F401 — re-exported
 
@@ -143,7 +156,8 @@ async def _resolve_folder_name(ctx, name: str) -> str | None:
         folders = (await _api_get(ctx, "/folders", {
             "user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
         })).get("folders", [])
-    except Exception:
+    except Exception as e:
+        log.warning("_resolve_folder_name: API error during lookup: %s", e)
         return None
     exact = next((f for f in folders if f["name"].strip().lower() == target), None)
     if exact:
@@ -159,7 +173,7 @@ async def _resolve_folder_name(ctx, name: str) -> str | None:
 
 ext = Extension(
     "notes",
-    version="3.4.1",
+    version="3.5.0",
     capabilities=["notes:read", "notes:write"],
     display_name="Notes",
     description=(

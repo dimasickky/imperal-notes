@@ -1,7 +1,7 @@
 {
   "manifest_schema_version": 3,
   "app_id": "notes",
-  "version": "3.4.1",
+  "version": "3.5.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -59,7 +59,7 @@
           },
           "folder_id": {
             "default": "",
-            "description": "Filter by folder UUID (not folder name).",
+            "description": "Filter by folder — accepts folder UUID or folder name (auto-resolved).",
             "title": "Folder Id",
             "type": "string"
           },
@@ -145,7 +145,7 @@
           },
           "folder_id": {
             "default": "",
-            "description": "Folder UUID (NOT folder name; resolve via resolve_folder first).",
+            "description": "Folder UUID or folder name — auto-resolved by the handler. Pass the name directly.",
             "title": "Folder Id",
             "type": "string"
           }
@@ -246,7 +246,7 @@
           },
           "folder_id": {
             "default": "",
-            "description": "Target folder UUID. Empty string moves to root.",
+            "description": "Target folder UUID or folder name — auto-resolved. Empty string moves to root.",
             "title": "Folder Id",
             "type": "string"
           }
@@ -755,7 +755,7 @@
         "type": "object"
       },
       "return_schema": {},
-      "event": "notes.created",
+      "event": "created",
       "scopes": [],
       "owner_chat_tool": "tool_notes_chat"
     },

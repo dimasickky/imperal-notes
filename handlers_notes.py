@@ -2,32 +2,12 @@
 from __future__ import annotations
 
 import logging
-import re
 
-_UUID_RE = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-    re.IGNORECASE,
-)
-
-
-def _bad_id(note_id: str) -> str | None:
-    """Return error message if note_id is not a valid UUID4, else None."""
-    if not note_id or not note_id.strip():
-        return "note_id is required. Call list_notes() or search_notes() first to get real IDs."
-    if not _UUID_RE.match(note_id.strip()):
-        return (
-            f"'{note_id}' is not a valid note ID. Note IDs are UUID4 strings "
-            "(e.g. '3f2504e0-4f89-11d3-9a0c-0305e82c3301'). "
-            "Call list_notes() or search_notes() first to get real IDs — never guess them."
-        )
-    return None
-
-
-from app import (  # noqa: E402
+from app import (
     chat, ActionResult,
     NotesAPIError,
     _api_get, _api_patch, _api_post, _api_delete,
-    require_user_id, _tenant_id, _resolve_folder_id_or_name,
+    require_user_id, _tenant_id, _resolve_folder_id_or_name, _bad_id,
 )
 from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
@@ -55,20 +35,19 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
             "limit":     params.limit,
             "offset":    params.offset,
         }
-        if params.folder_id: qp["folder_id"] = params.folder_id
+        if params.folder_id:
+            folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id)
+            if not folder_id:
+                return ActionResult.error(
+                    f"Folder '{params.folder_id}' not found. "
+                    "Use list_folders() to see available folders."
+                )
+            qp["folder_id"] = folder_id
         if params.search:    qp["search"] = params.search
         if params.tags:      qp["tags"] = ",".join(params.tags)
 
         resp = await _api_get(ctx, "/notes", qp)
         notes = resp.get("notes", [])
-
-        if params.tags:
-            wanted = {t.strip().lower() for t in params.tags if t.strip()}
-            if wanted:
-                notes = [
-                    n for n in notes
-                    if wanted.issubset({str(t).lower() for t in n.get("tags", [])})
-                ]
 
         total_count = resp.get("total_count")
         if total_count is None:
@@ -165,6 +144,13 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
             )
             content = content[len(title):].lstrip(": \n\t")
 
+        folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id)
+        if params.folder_id and not folder_id:
+            return ActionResult.error(
+                f"Folder '{params.folder_id}' not found. "
+                "Use list_folders() to see available folders."
+            )
+
         body: dict = {
             "user_id":      require_user_id(ctx),
             "tenant_id":    _tenant_id(ctx),
@@ -172,15 +158,15 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
             "content_text": content,
             "tags":         params.tags,
         }
-        if params.folder_id:
-            body["folder_id"] = params.folder_id
+        if folder_id:
+            body["folder_id"] = folder_id
 
         note = (await _api_post(ctx, "/notes", body)).get("note", {})
         return ActionResult.success(
             data={
                 "note_id":   note.get("id"),
                 "title":     note.get("title"),
-                "folder_id": params.folder_id or None,
+                "folder_id": folder_id or None,
             },
             summary=f"Note created: {note.get('title', params.title)}",
         )
@@ -233,17 +219,23 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     try:
         if err := _bad_id(params.note_id):
             return ActionResult.error(err)
+        folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id)
+        if params.folder_id and not folder_id:
+            return ActionResult.error(
+                f"Folder '{params.folder_id}' not found. "
+                "Use list_folders() to see available folders."
+            )
         data = await _api_patch(
             ctx, f"/notes/{params.note_id}",
             {"user_id": require_user_id(ctx)},
-            {"folder_id": params.folder_id if params.folder_id else None},
+            {"folder_id": folder_id if folder_id else None},
         )
-        target = params.folder_id or "All Notes"
+        target = folder_id or "All Notes"
         return ActionResult.success(
             data={
                 "note_id":   params.note_id,
                 "title":     data.get("note", {}).get("title", ""),
-                "folder_id": params.folder_id or None,
+                "folder_id": folder_id or None,
                 "moved_to":  target,
             },
             summary=f"Note moved to {target}",

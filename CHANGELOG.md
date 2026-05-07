@@ -6,6 +6,32 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.5.0] — 2026-05-07
+
+### Fixed
+
+- **[P0] `fn_create_note` — folder name → 422** — `folder_id` now auto-resolved via `_resolve_folder_id_or_name` before POST. If folder not found → explicit error with folder name. Previously a 3-char name (e.g. "ало") hit the API's `len < 8` check and returned 422 with no actionable message.
+- **[P0] `fn_move_note` — folder name → silent DB corruption** — same auto-resolve fix. Previously `folder_id="ало"` was stored verbatim in the DB (API PATCH has no `folder_exists` guard), leaving the note orphaned with a non-existent folder_id.
+- **[P0] `fn_list_notes` — client-side tag re-filter removed** — server already does `JSON_CONTAINS` AND-match per tag. The extra client filter ran on the already-filtered page, reducing correct results. Now trusts server output entirely.
+- **[P0] `fn_list_notes` — folder_id auto-resolved** — same `_resolve_folder_id_or_name` pattern. Previously a folder name silently produced `WHERE folder_id = "name"` → 0 results without error.
+- **[P1] `fn_duplicate_note` — `event="notes.created"` → `event="created"`** — double prefix `notes.notes.created` was emitted; sidebar never refreshed after duplication. Fixed to `event="created"` → kernel emits `notes.created` correctly.
+- **[P1] `fn_rename_folder` — folder name auto-resolved** — previously passed UUID raw; if LLM passed a name, PATCH silently returned `{status: "updated"}` with 0 rows updated.
+- **[P1] `fn_delete_folder` — folder name auto-resolved** — same pattern; silent no-op on name input.
+- **[P1] `fn_restore_note` — added `_bad_id()` UUID guard** — consistent with all other note-ID handlers. Previously only checked for empty string.
+- **[P1] `_resolve_folder_name` — added `log.warning` on API exception** — previously caught all exceptions silently, making API errors indistinguishable from "folder not found".
+- **[P1] `skeleton.py` — `pinned_notes` count now exact** — previously counted pinned notes from the first 100 results (client-side). Now uses `GET /notes?is_pinned=True&limit=1` → `total_count` from the API. Same fix for `trash_count`.
+- **[P1] `list_trash` — added `has_more` / `total_count` pagination fields** — previously hard-capped at 50 with no indication of more results.
+
+### Changed
+
+- **`panels.py` sidebar — server-side folder filter** — when a specific folder is selected, `GET /notes?folder_id=<uuid>` is now used instead of fetching 200 notes globally and filtering client-side. Fixes missing notes in folder view for users with >200 total notes.
+- **`_bad_id()` moved to `app.py`** — was duplicated in `handlers_notes.py`. Now exported from `app` and imported by both `handlers_notes` and `handlers_folders`. `handlers_notes.py` no longer defines its own `_UUID_RE`.
+- **`folder_id` field descriptions updated** in `models_notes.py` (`CreateNoteParams`, `MoveNoteParams`, `ListNotesParams`) — now correctly document that folder names are accepted and auto-resolved.
+- **`system_prompt.txt` routing rules updated** — rules 3, 9, 12, 13 simplified: LLM no longer needs to call `resolve_folder` before create/move/rename/delete operations; folder names accepted directly. DATA INTEGRITY section updated to reflect folder_id auto-resolution.
+- **SDK bumped `4.1.2 → 4.1.3`** — pure refactor release (chat/handler.py split), no API or behavioral changes.
+
+---
+
 ## [3.4.1] — 2026-05-05
 
 ### Fixed

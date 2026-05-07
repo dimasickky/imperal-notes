@@ -45,14 +45,24 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
         folders_failed = True
 
     # ── Notes list (not cached — primary content, freshness required) ────
+    # When a specific folder is selected, fetch server-side with folder_id filter
+    # so the list is never capped by a 200-note global limit. "All Notes" and
+    # "Unfiled" views still fetch up to 200 (no server-side "unfiled" filter exists).
     notes_failed = False
     all_notes: list = []
     total_count = 0
     try:
-        notes_resp = await _api_get(ctx, "/notes", {
-            "user_id": uid, "tenant_id": tid,
-            "is_archived": False, "is_trashed": False, "limit": 200,
-        }) or {}
+        if folder_id and folder_id not in ("", "__unfiled__"):
+            notes_resp = await _api_get(ctx, "/notes", {
+                "user_id": uid, "tenant_id": tid,
+                "folder_id": folder_id,
+                "is_archived": False, "is_trashed": False, "limit": 200,
+            }) or {}
+        else:
+            notes_resp = await _api_get(ctx, "/notes", {
+                "user_id": uid, "tenant_id": tid,
+                "is_archived": False, "is_trashed": False, "limit": 200,
+            }) or {}
         all_notes   = notes_resp.get("notes", [])
         total_count = int(notes_resp.get("total_count", len(all_notes)))
     except Exception as e:

@@ -23,7 +23,7 @@ def _make_h2t() -> html2text.HTML2Text:
     action_type="write",
     chain_callable=True,
     effects=["create:note"],
-    event="notes.created",
+    event="created",
     description="Duplicate a note — copies title, content, folder, and tags into a new note.",
 )
 async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:

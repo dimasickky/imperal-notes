@@ -19,21 +19,23 @@ async def skeleton_refresh_notes(ctx) -> dict:
     """Refresh note statistics. Pure read — idempotent."""
     uid, tid = _user_id(ctx), _tenant_id(ctx)
     try:
-        notes_resp, trash_resp = await asyncio.gather(
-            _api_get(ctx, "/notes", {"user_id": uid, "tenant_id": tid, "limit": 100}),
-            _api_get(ctx, "/notes", {"user_id": uid, "tenant_id": tid, "is_trashed": True, "limit": 100}),
+        notes_resp, pinned_resp, trash_resp = await asyncio.gather(
+            _api_get(ctx, "/notes", {"user_id": uid, "tenant_id": tid, "limit": 5}),
+            _api_get(ctx, "/notes", {"user_id": uid, "tenant_id": tid, "is_pinned": True, "limit": 1}),
+            _api_get(ctx, "/notes", {"user_id": uid, "tenant_id": tid, "is_trashed": True, "limit": 1}),
         )
-        notes = notes_resp.get("notes", [])
-        total_notes = int(notes_resp.get("total_count", len(notes)))
-        trash_count = int(trash_resp.get("total_count", len(trash_resp.get("notes", []))))
+        recent = notes_resp.get("notes", [])
+        total_notes  = int(notes_resp.get("total_count", 0))
+        pinned_notes = int(pinned_resp.get("total_count", 0))
+        trash_count  = int(trash_resp.get("total_count", 0))
 
         return {"response": {
             "total_notes":  total_notes,
-            "pinned_notes": sum(1 for n in notes if n.get("is_pinned")),
+            "pinned_notes": pinned_notes,
             "trash_count":  trash_count,
             "recent_notes": [
                 {"note_id": n["id"], "title": n["title"]}
-                for n in notes[:5]
+                for n in recent
             ],
         }}
     except Exception as e:

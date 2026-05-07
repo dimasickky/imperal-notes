@@ -55,7 +55,7 @@ class ListNotesParams(BaseModel):
         validation_alias=AliasChoices("offset", "skip"),
     )
     folder_id: str  = Field(
-        default="", description="Filter by folder UUID (not folder name).",
+        default="", description="Filter by folder — accepts folder UUID or folder name (auto-resolved).",
         validation_alias=AliasChoices("folder_id", "folder", "folderId"),
     )
     search: str     = Field(
@@ -110,7 +110,7 @@ class CreateNoteParams(BaseModel):
     )
     folder_id: str    = Field(
         default="",
-        description="Folder UUID (NOT folder name; resolve via resolve_folder first).",
+        description="Folder UUID or folder name — auto-resolved by the handler. Pass the name directly.",
         validation_alias=AliasChoices("folder_id", "folder", "folderId"),
     )
 
@@ -164,7 +164,7 @@ class MoveNoteParams(BaseModel):
     )
     folder_id: str = Field(
         default="",
-        description="Target folder UUID. Empty string moves to root.",
+        description="Target folder UUID or folder name — auto-resolved. Empty string moves to root.",
         validation_alias=AliasChoices("folder_id", "folder", "folderId"),
     )
 
