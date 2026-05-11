@@ -1,5 +1,6 @@
 """Notes · Folder & trash handlers."""
-from __future__ import annotations
+
+import logging
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -9,6 +10,7 @@ from app import (
     require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name, _bad_id,
 )
 
+log = logging.getLogger("notes.handlers")
 
 # ─── Models ───────────────────────────────────────────────────────────────── #
 
@@ -111,7 +113,8 @@ async def fn_list_folders(ctx, params: NoParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"list_folders backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("list_folders: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -162,7 +165,8 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"resolve_folder backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("resolve_folder: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -192,7 +196,8 @@ async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"create_folder backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("create_folder: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -228,7 +233,8 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"rename_folder backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("rename_folder: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -255,7 +261,8 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"delete_folder backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("delete_folder: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -309,7 +316,8 @@ async def fn_delete_folder_with_contents(
             f"delete_folder_with_contents backend returned {e.status_code}: {e.detail}"
         )
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("delete_folder_with_contents: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 # ─── Trash Handlers ───────────────────────────────────────────────────────── #
@@ -350,7 +358,8 @@ async def fn_list_trash(ctx, params: NoParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"list_trash backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("list_trash: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -377,7 +386,8 @@ async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"restore_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("restore_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -400,4 +410,5 @@ async def fn_empty_trash(ctx, params: NoParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"empty_trash backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("empty_trash: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)

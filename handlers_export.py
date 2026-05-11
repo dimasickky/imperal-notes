@@ -1,6 +1,7 @@
 """Notes · Duplicate and Export Markdown handlers."""
 from __future__ import annotations
 
+import logging
 import urllib.parse
 
 import html2text
@@ -8,6 +9,8 @@ import html2text
 from app import chat, ActionResult, NotesAPIError, _api_get, _api_post, require_user_id, _tenant_id
 from imperal_sdk import ui
 from models_notes import NoteIdParams
+
+log = logging.getLogger("notes.handlers")
 
 
 def _make_h2t() -> html2text.HTML2Text:
@@ -52,7 +55,8 @@ async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"Duplicate failed: {e.status_code} {e.detail}")
     except Exception as e:
-        return ActionResult.error(f"Duplicate failed: {e}")
+        log.error("duplicate_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -102,4 +106,5 @@ async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"Export failed: {e.status_code} {e.detail}")
     except Exception as e:
-        return ActionResult.error(f"Export failed: {e}")
+        log.error("export_markdown: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)

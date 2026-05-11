@@ -86,7 +86,8 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"list_notes backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("list_notes: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -116,7 +117,8 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"get_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("get_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -173,7 +175,8 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"create_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("create_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -204,7 +207,8 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"update_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("update_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -243,7 +247,8 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"move_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("move_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -264,7 +269,8 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"delete_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("delete_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -286,7 +292,8 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"permanent_delete_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("permanent_delete_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -325,7 +332,8 @@ async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) 
             f"delete_notes_from_folder backend returned {e.status_code}: {e.detail}"
         )
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("delete_notes_from_folder: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -386,4 +394,5 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"search_notes backend returned {e.status_code}: {e.detail}")
     except Exception as e:
-        return ActionResult.error(str(e))
+        log.error("search_notes: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)

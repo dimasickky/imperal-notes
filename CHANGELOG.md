@@ -6,6 +6,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.6.0] — 2026-05-11
+
+### Changed
+
+- **SDK bumped `4.1.3 → 4.2.0`** — picks up manifest emitter/schema symmetry gate (4.1.6), `@ext.panel(center_overlay=True)` declarative kwarg (4.1.8), `imperal init` template fix (4.1.9), and V31 system-app validator (4.2.0). No behavioral changes for this extension.
+- **Icon replaced** — new designer icon (notes-dark.svg) from Dimasickky design.
+
+### Fixed
+
+- **[I-MAGIC-UX] All 23 raw exception leaks eliminated** across all handler files. Raw `str(e)` and `f"...{e}"` were reaching users in violation of the federal I-MAGIC-UX-1/2 invariants. Each site now does `log.error("fn_name: %s", e)` for operator visibility and returns a stable `ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)`.
+  - `handlers_notes.py` — 9 sites (list/get/create/update/move/delete/permanent_delete/bulk_delete/search)
+  - `handlers_folders.py` — 9 sites (list/resolve/create/rename/delete/delete_with_contents/list_trash/restore/empty_trash)
+  - `handlers_export.py` — 2 sites (duplicate_note, export_markdown)
+  - `handlers_attachments.py` — 2 sites (upload_attachment, delete_attachment)
+  - `handlers_panel_actions.py` — 1 site (note_save)
+- **[Skeleton] `"error": str(e)` removed from degraded return in `skeleton.py`** — skeleton handlers must return zero-value dicts on failure; the previous `{"error": str(e)}` was injecting garbage into the LLM classifier context on backend failure.
+- **[V18] `from __future__ import annotations` removed** from `handlers_folders.py`, `handlers_attachments.py`, `handlers_panel_actions.py` — these files define Pydantic `BaseModel` param classes. Lazy string annotations created forward-reference risk that V18 checks for. Files that only import models retain it.
+- **[Logging] `import logging` + `log` added** to `handlers_folders.py`, `handlers_export.py`, `handlers_attachments.py`, `handlers_panel_actions.py` — required for the error logging pattern above.
+
+---
+
 ## [3.5.0] — 2026-05-07
 
 ### Fixed

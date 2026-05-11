@@ -1,7 +1,10 @@
 """Notes · Panel-specific action handlers."""
-from __future__ import annotations
+
+import logging
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
+log = logging.getLogger("notes.handlers")
 
 from app import (
     chat, ActionResult, NotesAPIError,
@@ -113,4 +116,5 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
     except NotesAPIError as e:
         return ActionResult.error(f"Save failed: {e.status_code} {e.detail}")
     except Exception as e:
-        return ActionResult.error(f"Save failed: {e}")
+        log.error("note_save: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)

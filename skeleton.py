@@ -45,5 +45,4 @@ async def skeleton_refresh_notes(ctx) -> dict:
             "pinned_notes": 0,
             "trash_count":  0,
             "recent_notes": [],
-            "error":        str(e),
         }}

@@ -1,9 +1,11 @@
 """Notes · Attachment handlers (upload / delete)."""
-from __future__ import annotations
 
 import base64
+import logging
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
+log = logging.getLogger("notes.handlers")
 
 from app import chat, ActionResult, NotesAPIError, _api_delete, _api_upload, require_user_id
 
@@ -87,7 +89,8 @@ async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionRes
     except NotesAPIError as e:
         return ActionResult.error(f"Upload failed: {e.status_code} {e.detail}")
     except Exception as e:
-        return ActionResult.error(f"Upload failed: {e}")
+        log.error("upload_attachment: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 
 @chat.function(
@@ -113,4 +116,5 @@ async def fn_delete_attachment(ctx, params: AttachmentDeleteParams) -> ActionRes
     except NotesAPIError as e:
         return ActionResult.error(f"Delete failed: {e.status_code} {e.detail}")
     except Exception as e:
-        return ActionResult.error(f"Delete failed: {e}")
+        log.error("delete_attachment: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
