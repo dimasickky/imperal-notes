@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.6.2] — 2026-05-13
+
+### Changed
+
+- SDK bumped `4.2.1 → 4.2.6` — picks up EXT-SECRETS-V1 (unconditional Secrets panel in right slot), validator synthetic-tool fix (4.2.5), and `ui.Password` primitive (4.2.6). No behavioral changes for this extension.
+
+---
+
 ## [3.6.1] — 2026-05-12
 
 ### Changed
