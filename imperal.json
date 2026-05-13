@@ -1,8 +1,8 @@
 {
   "manifest_schema_version": 3,
-  "sdk_version": "4.2.6",
+  "sdk_version": "4.2.10",
   "app_id": "notes",
-  "version": "3.6.2",
+  "version": "3.6.3",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -38,7 +38,7 @@
       "name": "list_notes",
       "description": "List notes (paginated). Returns up to `limit` rows per call (max 200). If `has_more` is true, call again with `offset=offset+limit` to fetch the next page.",
       "action_type": "read",
-      "chain_callable": false,
+      "chain_callable": true,
       "effects": [],
       "id_projection": "",
       "params_schema": {
@@ -92,7 +92,7 @@
       "name": "get_note",
       "description": "Get full content of a note by ID.",
       "action_type": "read",
-      "chain_callable": false,
+      "chain_callable": true,
       "effects": [],
       "id_projection": "",
       "params_schema": {
@@ -324,7 +324,7 @@
         "trash:note",
         "delete:note"
       ],
-      "id_projection": "",
+      "id_projection": "folder_id",
       "params_schema": {
         "description": "Bulk-delete all notes in a folder.",
         "properties": {
@@ -353,7 +353,7 @@
       "name": "search_notes",
       "description": "Full-text search across all notes (paginated). Returns up to `limit` results per call (max 50). If `has_more` is true, call again with `offset=offset+limit` to fetch the next page. Do NOT claim to have searched all notes until `has_more` is false.",
       "action_type": "read",
-      "chain_callable": false,
+      "chain_callable": true,
       "effects": [],
       "id_projection": "",
       "params_schema": {
@@ -393,7 +393,7 @@
       "name": "list_folders",
       "description": "List all note folders.",
       "action_type": "read",
-      "chain_callable": false,
+      "chain_callable": true,
       "effects": [],
       "id_projection": "",
       "params_schema": {
@@ -411,7 +411,7 @@
       "name": "resolve_folder",
       "description": "Resolve a notes folder by name (case-insensitive). Returns the folder_id plus match_quality ('exact' | 'prefix' | 'contains' | 'none'). Use this INSTEAD of list_folders+manual-match when you only need one folder — it's a single call and gives a stable ID across chain steps.",
       "action_type": "read",
-      "chain_callable": false,
+      "chain_callable": true,
       "effects": [],
       "id_projection": "",
       "params_schema": {
@@ -553,7 +553,7 @@
       "name": "list_trash",
       "description": "List all notes in trash.",
       "action_type": "read",
-      "chain_callable": false,
+      "chain_callable": true,
       "effects": [],
       "id_projection": "",
       "params_schema": {
@@ -710,7 +710,7 @@
       "effects": [
         "delete:attachment"
       ],
-      "id_projection": "note_id",
+      "id_projection": "att_id",
       "params_schema": {
         "properties": {
           "note_id": {
@@ -765,7 +765,7 @@
       "name": "export_markdown",
       "description": "Export a note as Markdown. Returns the converted content with a download button.",
       "action_type": "read",
-      "chain_callable": false,
+      "chain_callable": true,
       "effects": [],
       "id_projection": "",
       "params_schema": {

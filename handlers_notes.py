@@ -300,6 +300,7 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     "delete_notes_from_folder",
     action_type="destructive",
     chain_callable=True,
+    id_projection="folder_id",
     effects=["trash:note", "delete:note"],
     event="bulk_deleted",
     description=(

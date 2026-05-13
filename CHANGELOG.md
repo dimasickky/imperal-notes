@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.6.3] — 2026-05-13
+
+### Changed
+
+- SDK bumped `4.2.6 → 4.2.10` — picks up OAuth callback infrastructure + `ctx.webhook_url()` (4.2.7), `SecretDecl` in Manifest schema (4.2.8/4.2.9), and `chain_callable=True` default for read handlers (4.2.10).
+- `delete_notes_from_folder`: added `id_projection="folder_id"` — fixes kernel chain-step injection for compound handler name (heuristic would derive wrong field).
+- `delete_attachment`: corrected `id_projection` from `"note_id"` → `"att_id"` — kernel now correctly injects attachment ID into cross-step deletion chains.
+
+---
+
 ## [3.6.2] — 2026-05-13
 
 ### Changed

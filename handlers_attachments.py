@@ -97,7 +97,7 @@ async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionRes
     "delete_attachment",
     action_type="write",
     chain_callable=True,
-    id_projection="note_id",
+    id_projection="att_id",
     effects=["delete:attachment"],
     event="attachment.deleted",
     description="Delete a file attachment from a note.",
