@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.6.4] — 2026-05-13
+
+### Fixed
+
+- **Editor buttons unresponsive** — removed `on_change` from `RichEditor` (was firing on every keystroke, triggering `note_save` + panel re-render each character typed, which cancelled in-flight button clicks). `on_save` (Ctrl+S / toolbar button) is sufficient.
+- **I-MAGIC-UX**: three places leaked raw exception details to UI — `panels_editor.py` create-note error, `note_save` unknown-field branch, `note_save` `NotesAPIError` branch — all replaced with generic messages + `log.error`.
+
+---
+
 ## [3.6.3] — 2026-05-13
 
 ### Changed

@@ -58,7 +58,8 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
             if not note_id:
                 return ui.Error(message="Failed to create note")
         except Exception as e:
-            return ui.Error(message=f"Failed to create note: {e}")
+            log.error("editor: create new note failed: %s", e)
+            return ui.Error(message="Failed to create note. Please try again.")
     else:
         try:
             data = await _api_get(ctx, f"/notes/{note_id}", {"user_id": uid})
@@ -178,7 +179,6 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         placeholder="Start writing...",
         param_name="content_text",
         on_save=ui.Call("note_save", note_id=note_id, field="content"),
-        on_change=ui.Call("note_save", note_id=note_id, field="content"),
     )
 
     children = [action_bar, title_input, folder_select]

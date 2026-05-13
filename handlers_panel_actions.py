@@ -111,10 +111,12 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
                 summary=f"Note {label}",
             )
 
-        return ActionResult.error(f"Unknown field: {params.field!r}")
+        log.error("note_save: unknown field %r", params.field)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
     except NotesAPIError as e:
-        return ActionResult.error(f"Save failed: {e.status_code} {e.detail}")
+        log.error("note_save: API error %s %s", e.status_code, e.detail)
+        return ActionResult.error("Save failed. Please try again.", retryable=True)
     except Exception as e:
         log.error("note_save: %s", e)
         return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
