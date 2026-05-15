@@ -871,7 +871,7 @@
   },
   "lifecycle_hooks": {
     "on_install": {
-      "signature": "(ctx) -> 'None'"
+      "signature": "(ctx) -> None"
     }
   }
 }

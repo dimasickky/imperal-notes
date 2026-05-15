@@ -12,8 +12,6 @@ Aliases here are *input-only* (`validation_alias`); serialization keeps
 the canonical field name so the wire contract with the backend stays
 stable.
 """
-from __future__ import annotations
-
 from typing import Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator

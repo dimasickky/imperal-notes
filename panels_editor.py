@@ -67,7 +67,7 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         except Exception as e:
             log.warning("editor: failed to fetch note %s: %s", note_id, e)
             return ui.Error(
-                message=f"Could not load note: {e}",
+                message="Could not load note. Please try again.",
                 retry=ui.Call("__panel__editor", note_id=note_id),
             )
 
