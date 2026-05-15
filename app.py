@@ -173,7 +173,7 @@ async def _resolve_folder_name(ctx, name: str) -> str | None:
 
 ext = Extension(
     "notes",
-    version="3.6.4",
+    version="3.7.0",
     capabilities=["notes:read", "notes:write"],
     display_name="Notes",
     description=(
@@ -222,9 +222,6 @@ async def _declare_events() -> None:  # pragma: no cover
 
 # ─── ChatExtension ────────────────────────────────────────────────────────── #
 
-from pathlib import Path as _Path
-SYSTEM_PROMPT = (_Path(__file__).parent / "system_prompt.txt").read_text()
-
 chat = ChatExtension(
     ext=ext,
     tool_name="tool_notes_chat",
@@ -232,7 +229,6 @@ chat = ChatExtension(
         "Personal notes assistant — create, read, update, delete, search, "
         "organize notes with folders and tags, move notes, manage trash"
     ),
-    system_prompt=SYSTEM_PROMPT,
 )
 
 
