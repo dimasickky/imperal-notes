@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Changed
 
 - **SDK 5.0.0 migration** — bumped `imperal-sdk` to `5.0.0`. Removed deprecated `system_prompt=` kwarg from `ChatExtension` (no-op in 5.0.0). Manifest rebuilt — `tool_notes_chat` orchestrator-tool entry removed (V25 compliance, `I-LOADER-REJECTS-LEGACY-LLM-ROUTER`).
+- **`update_note` — no-op detection** — handler now fetches current note before PATCH and compares fields. If nothing changed, returns `was_changed: false` without writing to backend. Response always includes `was_changed: bool` for accurate kernel narration.
 
 ---
 
