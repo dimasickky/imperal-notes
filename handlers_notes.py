@@ -198,10 +198,32 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
         if params.is_pinned is not None: updates["is_pinned"] = params.is_pinned
         if not updates:
             return ActionResult.error("No fields to update")
-        data = await _api_patch(ctx, f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)}, updates)
-        title = data.get("note", {}).get("title", "")
+
+        user_id = require_user_id(ctx)
+        current = (await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": user_id})).get("note", {})
+
+        changed: dict = {}
+        for field, value in updates.items():
+            cur = current.get(field)
+            if field == "tags":
+                if set(value) != set(cur or []):
+                    changed[field] = value
+            else:
+                if value != cur:
+                    changed[field] = value
+
+        title = current.get("title", "")
+
+        if not changed:
+            return ActionResult.success(
+                data={"note_id": params.note_id, "title": title, "was_changed": False},
+                summary=f"Note is already up to date: {title}",
+            )
+
+        data = await _api_patch(ctx, f"/notes/{params.note_id}", {"user_id": user_id}, changed)
+        title = data.get("note", {}).get("title", title)
         return ActionResult.success(
-            data={"note_id": params.note_id, "title": title, "fields_updated": list(updates.keys())},
+            data={"note_id": params.note_id, "title": title, "fields_updated": list(changed.keys()), "was_changed": True},
             summary=f"Note updated: {title}",
         )
     except NotesAPIError as e:
