@@ -8,6 +8,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 log = logging.getLogger("notes.handlers")
 
 from app import chat, ActionResult, NotesAPIError, _api_delete, _api_upload, require_user_id
+from models_return import UploadAttachmentResult, DeleteAttachmentResult
 
 
 def _extract_b64(payload) -> tuple[str, str, str]:
@@ -59,6 +60,7 @@ class AttachmentDeleteParams(BaseModel):
     effects=["create:attachment"],
     event="attachment.uploaded",
     description="Upload a file attachment to a note.",
+    data_model=UploadAttachmentResult,
 )
 async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionResult:
     uid = require_user_id(ctx)
@@ -101,6 +103,7 @@ async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionRes
     effects=["delete:attachment"],
     event="attachment.deleted",
     description="Delete a file attachment from a note.",
+    data_model=DeleteAttachmentResult,
 )
 async def fn_delete_attachment(ctx, params: AttachmentDeleteParams) -> ActionResult:
     uid = require_user_id(ctx)

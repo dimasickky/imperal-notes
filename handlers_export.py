@@ -9,6 +9,7 @@ import html2text
 from app import chat, ActionResult, NotesAPIError, _api_get, _api_post, require_user_id, _tenant_id
 from imperal_sdk import ui
 from models_notes import NoteIdParams
+from models_return import DuplicateNoteResult, ExportMarkdownResult
 
 log = logging.getLogger("notes.handlers")
 
@@ -28,6 +29,7 @@ def _make_h2t() -> html2text.HTML2Text:
     effects=["create:note"],
     event="created",
     description="Duplicate a note — copies title, content, folder, and tags into a new note.",
+    data_model=DuplicateNoteResult,
 )
 async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
     uid = require_user_id(ctx)
@@ -63,6 +65,7 @@ async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
     "export_markdown",
     action_type="read",
     description="Export a note as Markdown. Returns the converted content with a download button.",
+    data_model=ExportMarkdownResult,
 )
 async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
     uid = require_user_id(ctx)

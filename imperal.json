@@ -1,8 +1,8 @@
 {
   "manifest_schema_version": 3,
-  "sdk_version": "5.0.0",
+  "sdk_version": "5.0.1",
   "app_id": "notes",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -68,7 +68,121 @@
         "title": "ListNotesParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "$defs": {
+          "NoteListItem": {
+            "properties": {
+              "note_id": {
+                "title": "Note Id",
+                "type": "string"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "word_count": {
+                "title": "Word Count",
+                "type": "integer"
+              },
+              "is_pinned": {
+                "title": "Is Pinned",
+                "type": "boolean"
+              },
+              "is_archived": {
+                "title": "Is Archived",
+                "type": "boolean"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Tags",
+                "type": "array"
+              },
+              "folder_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Folder Id"
+              }
+            },
+            "required": [
+              "note_id",
+              "title",
+              "word_count",
+              "is_pinned",
+              "is_archived",
+              "tags",
+              "folder_id"
+            ],
+            "title": "NoteListItem",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "notes": {
+            "items": {
+              "$ref": "#/$defs/NoteListItem"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          },
+          "total_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Count"
+          }
+        },
+        "required": [
+          "notes",
+          "page_size",
+          "offset",
+          "limit",
+          "has_more",
+          "next_offset",
+          "total_count"
+        ],
+        "title": "ListNotesResult",
+        "type": "object"
+      },
       "event": "",
       "background": false,
       "long_running": false,
@@ -95,7 +209,78 @@
         "title": "NoteIdParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "is_pinned": {
+            "title": "Is Pinned",
+            "type": "boolean"
+          },
+          "is_archived": {
+            "title": "Is Archived",
+            "type": "boolean"
+          },
+          "word_count": {
+            "title": "Word Count",
+            "type": "integer"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          }
+        },
+        "required": [
+          "note_id",
+          "title",
+          "content",
+          "tags",
+          "is_pinned",
+          "is_archived",
+          "word_count",
+          "folder_id"
+        ],
+        "title": "NoteRecord",
+        "type": "object"
+      },
       "event": "",
       "background": false,
       "long_running": false,
@@ -144,7 +329,50 @@
         "title": "CreateNoteParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          }
+        },
+        "required": [
+          "note_id",
+          "title",
+          "folder_id"
+        ],
+        "title": "CreateNoteResult",
+        "type": "object"
+      },
       "event": "created",
       "background": false,
       "long_running": false,
@@ -214,7 +442,44 @@
         "title": "UpdateNoteParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "was_changed": {
+            "title": "Was Changed",
+            "type": "boolean"
+          },
+          "fields_updated": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fields Updated"
+          }
+        },
+        "required": [
+          "note_id",
+          "title",
+          "was_changed"
+        ],
+        "title": "UpdateNoteResult",
+        "type": "object"
+      },
       "event": "updated",
       "background": false,
       "long_running": false,
@@ -249,7 +514,41 @@
         "title": "MoveNoteParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "moved_to": {
+            "title": "Moved To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note_id",
+          "title",
+          "folder_id",
+          "moved_to"
+        ],
+        "title": "MoveNoteResult",
+        "type": "object"
+      },
       "event": "moved",
       "background": false,
       "long_running": false,
@@ -278,7 +577,19 @@
         "title": "NoteIdParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note_id"
+        ],
+        "title": "DeleteNoteResult",
+        "type": "object"
+      },
       "event": "deleted",
       "background": false,
       "long_running": false,
@@ -307,7 +618,19 @@
         "title": "NoteIdParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note_id"
+        ],
+        "title": "DeleteNoteResult",
+        "type": "object"
+      },
       "event": "permanently_deleted",
       "background": false,
       "long_running": false,
@@ -343,7 +666,29 @@
         "title": "DeleteNotesFromFolderParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "deleted_count": {
+            "title": "Deleted Count",
+            "type": "integer"
+          },
+          "folder_id": {
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "permanent": {
+            "title": "Permanent",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleted_count",
+          "folder_id",
+          "permanent"
+        ],
+        "title": "BulkDeleteNotesResult",
+        "type": "object"
+      },
       "event": "bulk_deleted",
       "background": false,
       "long_running": false,
@@ -385,7 +730,115 @@
         "title": "SearchNotesParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "$defs": {
+          "SearchNoteItem": {
+            "properties": {
+              "note_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Note Id"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Title"
+              },
+              "excerpt": {
+                "title": "Excerpt",
+                "type": "string"
+              },
+              "is_archived": {
+                "title": "Is Archived",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "note_id",
+              "title",
+              "excerpt",
+              "is_archived"
+            ],
+            "title": "SearchNoteItem",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/$defs/SearchNoteItem"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          },
+          "total_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Count"
+          }
+        },
+        "required": [
+          "results",
+          "query",
+          "page_size",
+          "offset",
+          "limit",
+          "has_more",
+          "next_offset",
+          "total_count"
+        ],
+        "title": "SearchNotesResult",
+        "type": "object"
+      },
       "event": "",
       "background": false,
       "long_running": false,
@@ -405,7 +858,47 @@
         "title": "NoParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "$defs": {
+          "FolderItem": {
+            "properties": {
+              "folder_id": {
+                "title": "Folder Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "folder_id",
+              "name"
+            ],
+            "title": "FolderItem",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "folders": {
+            "items": {
+              "$ref": "#/$defs/FolderItem"
+            },
+            "title": "Folders",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "folders",
+          "total"
+        ],
+        "title": "ListFoldersResult",
+        "type": "object"
+      },
       "event": "",
       "background": false,
       "long_running": false,
@@ -431,7 +924,78 @@
         "title": "ResolveFolderParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "$defs": {
+          "FolderItem": {
+            "properties": {
+              "folder_id": {
+                "title": "Folder Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "folder_id",
+              "name"
+            ],
+            "title": "FolderItem",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "match_quality": {
+            "title": "Match Quality",
+            "type": "string"
+          },
+          "candidates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/FolderItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Candidates"
+          }
+        },
+        "required": [
+          "folder_id",
+          "name",
+          "match_quality"
+        ],
+        "title": "ResolveFolderResult",
+        "type": "object"
+      },
       "event": "",
       "background": false,
       "long_running": false,
@@ -459,7 +1023,46 @@
         "title": "CreateFolderParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "folder_id",
+          "name",
+          "refresh_panels"
+        ],
+        "title": "CreateFolderResult",
+        "type": "object"
+      },
       "event": "folder_created",
       "background": false,
       "long_running": false,
@@ -493,7 +1096,32 @@
         "title": "RenameFolderParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "folder_id": {
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "folder_id",
+          "name",
+          "refresh_panels"
+        ],
+        "title": "RenameFolderResult",
+        "type": "object"
+      },
       "event": "folder_renamed",
       "background": false,
       "long_running": false,
@@ -521,7 +1149,27 @@
         "title": "FolderIdParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "folder_id": {
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "folder_id",
+          "refresh_panels"
+        ],
+        "title": "DeleteFolderResult",
+        "type": "object"
+      },
       "event": "folder_deleted",
       "background": false,
       "long_running": false,
@@ -557,7 +1205,37 @@
         "title": "DeleteFolderWithContentsParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "folder_id": {
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "deleted_count": {
+            "title": "Deleted Count",
+            "type": "integer"
+          },
+          "permanent": {
+            "title": "Permanent",
+            "type": "boolean"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "folder_id",
+          "deleted_count",
+          "permanent",
+          "refresh_panels"
+        ],
+        "title": "DeleteFolderWithContentsResult",
+        "type": "object"
+      },
       "event": "folder_with_contents_deleted",
       "background": false,
       "long_running": false,
@@ -577,7 +1255,77 @@
         "title": "NoParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "$defs": {
+          "TrashNoteItem": {
+            "properties": {
+              "note_id": {
+                "title": "Note Id",
+                "type": "string"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "word_count": {
+                "title": "Word Count",
+                "type": "integer"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Tags",
+                "type": "array"
+              }
+            },
+            "required": [
+              "note_id",
+              "title",
+              "word_count",
+              "tags"
+            ],
+            "title": "TrashNoteItem",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "trash_notes": {
+            "items": {
+              "$ref": "#/$defs/TrashNoteItem"
+            },
+            "title": "Trash Notes",
+            "type": "array"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Count"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "trash_notes",
+          "page_size",
+          "total_count",
+          "has_more"
+        ],
+        "title": "ListTrashResult",
+        "type": "object"
+      },
       "event": "",
       "background": false,
       "long_running": false,
@@ -605,7 +1353,36 @@
         "title": "RestoreNoteParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          }
+        },
+        "required": [
+          "note_id",
+          "title",
+          "folder_id"
+        ],
+        "title": "RestoreNoteResult",
+        "type": "object"
+      },
       "event": "restored",
       "background": false,
       "long_running": false,
@@ -627,7 +1404,19 @@
         "title": "NoParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "deleted_count": {
+            "title": "Deleted Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted_count"
+        ],
+        "title": "EmptyTrashResult",
+        "type": "object"
+      },
       "event": "emptied",
       "background": false,
       "long_running": false,
@@ -687,7 +1476,32 @@
         "title": "NoteSaveParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          },
+          "saved": {
+            "title": "Saved",
+            "type": "string"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "note_id",
+          "saved",
+          "refresh_panels"
+        ],
+        "title": "NoteSaveResult",
+        "type": "object"
+      },
       "event": "updated",
       "background": false,
       "long_running": false,
@@ -720,7 +1534,26 @@
         "title": "AttachmentUploadParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "attachment": {
+            "title": "Attachment"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "attachment",
+          "refresh_panels"
+        ],
+        "title": "UploadAttachmentResult",
+        "type": "object"
+      },
       "event": "attachment.uploaded",
       "background": false,
       "long_running": false,
@@ -754,7 +1587,27 @@
         "title": "AttachmentDeleteParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "att_id": {
+            "title": "Att Id",
+            "type": "string"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "att_id",
+          "refresh_panels"
+        ],
+        "title": "DeleteAttachmentResult",
+        "type": "object"
+      },
       "event": "attachment.deleted",
       "background": false,
       "long_running": false,
@@ -783,7 +1636,34 @@
         "title": "NoteIdParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "note_id",
+          "refresh_panels"
+        ],
+        "title": "DuplicateNoteResult",
+        "type": "object"
+      },
       "event": "created",
       "background": false,
       "long_running": false,
@@ -810,7 +1690,24 @@
         "title": "NoteIdParams",
         "type": "object"
       },
-      "return_schema": {},
+      "return_schema": {
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "markdown": {
+            "title": "Markdown",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "markdown"
+        ],
+        "title": "ExportMarkdownResult",
+        "type": "object"
+      },
       "event": "",
       "background": false,
       "long_running": false,

@@ -9,6 +9,11 @@ from app import (
     _api_get, _api_post, _api_patch, _api_delete,
     require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name, _bad_id,
 )
+from models_return import (
+    ListFoldersResult, ResolveFolderResult, CreateFolderResult, RenameFolderResult,
+    DeleteFolderResult, DeleteFolderWithContentsResult,
+    ListTrashResult, RestoreNoteResult, EmptyTrashResult,
+)
 
 log = logging.getLogger("notes.handlers")
 
@@ -99,6 +104,7 @@ class ResolveFolderParams(BaseModel):
     "list_folders",
     action_type="read",
     description="List all note folders.",
+    data_model=ListFoldersResult,
 )
 async def fn_list_folders(ctx, params: NoParams) -> ActionResult:
     try:
@@ -126,6 +132,7 @@ async def fn_list_folders(ctx, params: NoParams) -> ActionResult:
         "this INSTEAD of list_folders+manual-match when you only need one "
         "folder — it's a single call and gives a stable ID across chain steps."
     ),
+    data_model=ResolveFolderResult,
 )
 async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
     try:
@@ -176,6 +183,7 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
     effects=["create:folder"],
     event="folder_created",
     description="Create a new notes folder.",
+    data_model=CreateFolderResult,
 )
 async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
     try:
@@ -207,6 +215,7 @@ async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
     effects=["update:folder"],
     event="folder_renamed",
     description="Rename an existing notes folder.",
+    data_model=RenameFolderResult,
 )
 async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
     try:
@@ -244,6 +253,7 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
     effects=["delete:folder"],
     event="folder_deleted",
     description="Delete a folder (notes move to root).",
+    data_model=DeleteFolderResult,
 )
 async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
     try:
@@ -278,6 +288,7 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
         "By default moves notes to trash then deletes the folder; "
         "pass permanent=true to permanently delete notes instead."
     ),
+    data_model=DeleteFolderWithContentsResult,
 )
 async def fn_delete_folder_with_contents(
     ctx, params: DeleteFolderWithContentsParams,
@@ -326,6 +337,7 @@ async def fn_delete_folder_with_contents(
     "list_trash",
     action_type="read",
     description="List all notes in trash.",
+    data_model=ListTrashResult,
 )
 async def fn_list_trash(ctx, params: NoParams) -> ActionResult:
     try:
@@ -369,6 +381,7 @@ async def fn_list_trash(ctx, params: NoParams) -> ActionResult:
     effects=["update:note"],
     event="restored",
     description="Restore a note from trash.",
+    data_model=RestoreNoteResult,
 )
 async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
     try:
@@ -397,6 +410,7 @@ async def fn_restore_note(ctx, params: RestoreNoteParams) -> ActionResult:
     effects=["delete:note"],
     event="emptied",
     description="Permanently delete all trashed notes.",
+    data_model=EmptyTrashResult,
 )
 async def fn_empty_trash(ctx, params: NoParams) -> ActionResult:
     try:

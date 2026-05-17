@@ -11,6 +11,7 @@ from app import (
     _api_get, _api_patch,
     require_user_id,
 )
+from models_return import NoteSaveResult
 
 
 class NoteSaveParams(BaseModel):
@@ -50,6 +51,7 @@ class NoteSaveParams(BaseModel):
     effects=["update:note"],
     event="updated",
     description="Save a note field from the editor panel (title, content, tags, folder, pin, archive).",
+    data_model=NoteSaveResult,
 )
 async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
     uid = require_user_id(ctx)

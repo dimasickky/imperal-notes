@@ -14,6 +14,10 @@ from models_notes import (  # noqa: E402
     CreateNoteParams, DeleteNotesFromFolderParams, ListNotesParams, MoveNoteParams,
     NoteIdParams, SearchNotesParams, UpdateNoteParams,
 )
+from models_return import (
+    ListNotesResult, NoteRecord, CreateNoteResult, UpdateNoteResult,
+    MoveNoteResult, DeleteNoteResult, BulkDeleteNotesResult, SearchNotesResult,
+)
 
 log = logging.getLogger("notes.handlers")
 
@@ -26,6 +30,7 @@ log = logging.getLogger("notes.handlers")
         f"(max {MAX_NOTES_PER_PAGE}). If `has_more` is true, call again with "
         "`offset=offset+limit` to fetch the next page."
     ),
+    data_model=ListNotesResult,
 )
 async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
     try:
@@ -94,6 +99,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
     "get_note",
     action_type="read",
     description="Get full content of a note by ID.",
+    data_model=NoteRecord,
 )
 async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
@@ -128,6 +134,7 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     effects=["create:note"],
     event="created",
     description="Create a new note with title, content, tags, and optional folder.",
+    data_model=CreateNoteResult,
 )
 async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
     try:
@@ -186,6 +193,7 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
     effects=["update:note"],
     event="updated",
     description="Update note title, content, tags, or pin status.",
+    data_model=UpdateNoteResult,
 )
 async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     try:
@@ -240,6 +248,7 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     effects=["update:note"],
     event="moved",
     description="Move note to a folder, or root with empty folder_id.",
+    data_model=MoveNoteResult,
 )
 async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     try:
@@ -280,6 +289,7 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     effects=["trash:note"],
     event="deleted",
     description="Delete a note (moves to trash).",
+    data_model=DeleteNoteResult,
 )
 async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
@@ -303,6 +313,7 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     effects=["delete:note"],
     event="permanently_deleted",
     description="Permanently delete a note. Cannot be undone.",
+    data_model=DeleteNoteResult,
 )
 async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
@@ -330,6 +341,7 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
         "pass permanent=true to permanently delete instead. "
         "folder_id accepts a folder UUID OR a folder name — auto-resolved either way."
     ),
+    data_model=BulkDeleteNotesResult,
 )
 async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) -> ActionResult:
     try:
@@ -368,6 +380,7 @@ async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) 
         "call again with `offset=offset+limit` to fetch the next page. "
         "Do NOT claim to have searched all notes until `has_more` is false."
     ),
+    data_model=SearchNotesResult,
 )
 async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
     try:
