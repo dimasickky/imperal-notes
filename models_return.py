@@ -79,7 +79,7 @@ class SearchNoteItem(BaseModel):
     note_id: str | None
     title: str | None
     excerpt: str
-    is_archived: bool
+    # is_archived intentionally omitted — backend search endpoint does not return it
 
 
 class SearchNotesResult(BaseModel):

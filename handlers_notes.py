@@ -48,8 +48,9 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
                     "Use list_folders() to see available folders."
                 )
             qp["folder_id"] = folder_id
-        if params.search:    qp["search"] = params.search
-        if params.tags:      qp["tags"] = ",".join(params.tags)
+        if params.search:                  qp["search"] = params.search
+        if params.tags:                    qp["tags"] = ",".join(params.tags)
+        if params.is_archived is not None: qp["is_archived"] = params.is_archived
 
         resp = await _api_get(ctx, "/notes", qp)
         notes = resp.get("notes", [])
@@ -408,10 +409,9 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
         return ActionResult.success(
             data={
                 "results": [{
-                    "note_id":     r.get("id"),
-                    "title":       r.get("title"),
-                    "excerpt":     r.get("excerpt", "")[:200],
-                    "is_archived": r.get("is_archived", False),
+                    "note_id": r.get("id"),
+                    "title":   r.get("title"),
+                    "excerpt": r.get("excerpt", "")[:200],
                 } for r in results],
                 "query":       params.query,
                 "page_size":   len(results),

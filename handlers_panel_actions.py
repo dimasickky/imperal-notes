@@ -9,7 +9,7 @@ log = logging.getLogger("notes.handlers")
 from app import (
     chat, ActionResult, NotesAPIError,
     _api_get, _api_patch,
-    require_user_id,
+    require_user_id, _bad_id,
 )
 from models_return import NoteSaveResult
 
@@ -55,6 +55,8 @@ class NoteSaveParams(BaseModel):
 )
 async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
     uid = require_user_id(ctx)
+    if err := _bad_id(params.note_id):
+        return ActionResult.error(err)
 
     try:
         if params.field == "title":

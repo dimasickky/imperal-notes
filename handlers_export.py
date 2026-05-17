@@ -90,21 +90,18 @@ async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
         data_uri = "data:text/markdown;charset=utf-8," + urllib.parse.quote(markdown)
 
         return ActionResult.success(
-            data={
-                "title":    title,
-                "markdown": markdown,
-                "ui": ui.Stack([
-                    ui.Button(
-                        f"Download {title[:40]}.md",
-                        icon="Download",
-                        variant="primary",
-                        on_click=ui.Open(data_uri),
-                    ),
-                    ui.Text("If the button opens text instead of downloading — copy from the block below."),
-                    ui.Code(markdown, language="markdown"),
-                ]),
-            },
+            data={"title": title, "markdown": markdown},
             summary=f"Exported '{title}' as Markdown",
+            ui=ui.Stack([
+                ui.Button(
+                    f"Download {title[:40]}.md",
+                    icon="Download",
+                    variant="primary",
+                    on_click=ui.Open(data_uri),
+                ),
+                ui.Text("If the button opens text instead of downloading — copy from the block below."),
+                ui.Code(markdown, language="markdown"),
+            ]),
         )
     except NotesAPIError as e:
         return ActionResult.error(f"Export failed: {e.status_code} {e.detail}")

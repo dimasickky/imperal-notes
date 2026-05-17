@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.9.0] — 2026-05-18
+
+### Added
+- **`is_archived` filter in `list_notes`** — `ListNotesParams` now accepts `is_archived: bool | None`. Default `None` = active notes only (backend default). Pass `True` to list archived notes. Passes `is_archived` query param to backend `GET /notes`.
+
+### Fixed
+- **`export_markdown`** — `ui` widget moved from `data={}` to `ActionResult.success(ui=...)` kwarg. Putting a UINode inside `data` is incorrect per SDK contract; it bypassed DTO validation and could cause Pydantic warnings at emit time.
+- **`note_save`** — added `_bad_id(params.note_id)` validation before the PATCH call. Was the only write handler missing UUID format validation.
+- **`SearchNoteItem` DTO** — removed `is_archived` field. Backend `GET /notes/search/fulltext` does not return this field; it was always `False` (misleading to LLM). Handler updated to match.
+
+---
+
 ## [3.8.0] — 2026-05-17
 
 ### Changed

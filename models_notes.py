@@ -65,6 +65,14 @@ class ListNotesParams(BaseModel):
         description="Filter by tag names (AND-match: a note must have all listed tags).",
         validation_alias=AliasChoices("tags", "labels"),
     )
+    is_archived: bool | None = Field(
+        default=None,
+        description=(
+            "Filter by archive status. None (default) = active notes only. "
+            "True = archived notes only. False = explicitly active only."
+        ),
+        validation_alias=AliasChoices("is_archived", "archived"),
+    )
 
     _coerce_tags = field_validator("tags", mode="before")(_coerce_tags)
 
