@@ -19,11 +19,15 @@ async def skeleton_refresh_notes(ctx) -> dict:
     """Refresh note statistics. Pure read — idempotent."""
     uid, tid = _user_id(ctx), _tenant_id(ctx)
     try:
-        notes_resp, pinned_resp, trash_resp = await asyncio.gather(
+        _results = await asyncio.gather(
             _api_get(ctx, "/notes", {"user_id": uid, "tenant_id": tid, "limit": 5}),
             _api_get(ctx, "/notes", {"user_id": uid, "tenant_id": tid, "is_pinned": True, "limit": 1}),
             _api_get(ctx, "/notes", {"user_id": uid, "tenant_id": tid, "is_trashed": True, "limit": 1}),
+            return_exceptions=True,
         )
+        notes_resp  = _results[0] if not isinstance(_results[0], Exception) else {}
+        pinned_resp = _results[1] if not isinstance(_results[1], Exception) else {}
+        trash_resp  = _results[2] if not isinstance(_results[2], Exception) else {}
         recent = notes_resp.get("notes", [])
         total_notes  = int(notes_resp.get("total_count", 0))
         pinned_notes = int(pinned_resp.get("total_count", 0))
