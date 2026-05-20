@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.10.0] — 2026-05-20
+
+### Fixed
+- **Skeleton — folders** — folder list now included in every skeleton tick (`folder_id`, `name` per folder, `folder_count`). Classifier previously had no folder data → hallucinated UUIDs when user referenced a folder by name.
+- **Skeleton — `folder_id` in recent notes** — each recent note now carries its `folder_id`. Classifier can filter "last note in folder X" without guessing.
+- **Skeleton — recent notes limit** — increased from 5 to 10 for better context coverage.
+- **Skeleton — `asyncio.gather` resilience** — added `return_exceptions=True`; a single failing API call (e.g. `/folders` timeout) no longer drops the entire skeleton tick.
+
+---
+
 ## [3.9.0] — 2026-05-18
 
 ### Added
