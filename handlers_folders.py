@@ -133,7 +133,7 @@ async def fn_list_folders(ctx, params: NoParams) -> ActionResult:
         "this INSTEAD of list_folders+manual-match when you only need one "
         "folder — it's a single call and gives a stable ID across chain steps."
     ),
-    data_model=ResolveFolderResult,
+    data_model=FolderEntity,
 )
 async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
     try:
@@ -156,22 +156,15 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
         elif contain:
             hit, quality = contain[0], "contains"
         else:
-            return ActionResult.success(
-                data={
-                    "folder_id":     None,
-                    "name":          None,
-                    "match_quality": "none",
-                    "candidates": [
-                        FolderEntity(id=f["id"], title=f["name"], kind="folder")
-                        for f in folders
-                    ],
-                },
-                summary=f"No folder named '{params.name}' — {len(folders)} folder(s) exist",
+            available = ", ".join(f["name"] for f in folders[:10])
+            return ActionResult.error(
+                f"Folder '{params.name}' not found. Available folders: {available}"
             )
 
+        entity = FolderEntity(id=hit["id"], title=hit["name"], kind="folder")
         return ActionResult.success(
-            data={"folder_id": hit["id"], "name": hit["name"], "match_quality": quality},
-            summary=f"Resolved '{params.name}' -> '{hit['name']}' ({quality} match)",
+            data=entity,
+            summary=f"Folder '{entity.title}' (id={entity.id}) — {quality} match",
         )
     except NotesAPIError as e:
         return ActionResult.error(f"resolve_folder backend returned {e.status_code}: {e.detail}")

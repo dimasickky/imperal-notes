@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.11.1] — 2026-06-01
+
+### Fixed
+
+- **`resolve_folder` now returns `FolderEntity` (SDL entity, `x-sdl=entity`).**
+  Previously returned `ResolveFolderResult` (plain BaseModel) — entity focus couldn't
+  capture the folder UUID/title from it via SDL path. Now returns a single `FolderEntity`
+  with canonical `id`/`title`/`kind`, so kernel entity focus captures the real folder
+  UUID immediately after resolve_folder is called, preventing hallucinated folder IDs
+  in subsequent `create_note` chain steps.
+  Not-found case now returns `ActionResult.error` with available folder names.
+
 ## [3.11.0] — 2026-05-31
 
 ### Changed
