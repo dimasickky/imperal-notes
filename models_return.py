@@ -1,25 +1,39 @@
-"""Notes · Typed return models for @chat.function data_model= contracts (SDK 5.0.1)."""
+"""Notes · Typed return models for @chat.function data_model= contracts (SDK 5.2.0 SDL)."""
 
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
-
-# ─── Shared primitives ────────────────────────────────────────────────────── #
-
-class NoteListItem(BaseModel):
-    note_id: str
-    title: str
-    word_count: int
-    is_pinned: bool
-    is_archived: bool
-    tags: list[str]
-    folder_id: str | None
+from imperal_sdk import sdl
 
 
-class FolderItem(BaseModel):
-    folder_id: str
-    name: str
+# ─── SDL Entity types (SDK 5.2.0) ─────────────────────────────────────────── #
+
+class NoteEntity(sdl.Entity, sdl.Bodied, sdl.Categorized):
+    """Full SDL note entity. id=note_id (UUID), title=note title, kind="note".
+    sdl.Bodied provides: body (content), body_format.
+    sdl.Categorized provides: tags."""
+    is_pinned: bool = False
+    is_archived: bool = False
+    word_count: int = 0
+    folder_id: Optional[str] = None
+
+
+class NoteListItem(sdl.Entity, sdl.Categorized):
+    """Slim SDL note entity for list results."""
+    is_pinned: bool = False
+    is_archived: bool = False
+    word_count: int = 0
+    folder_id: Optional[str] = None
+
+
+class SearchNoteItem(sdl.Entity):
+    """Slim SDL note entity for search results."""
+    excerpt: str = ""
+
+
+class FolderEntity(sdl.Entity):
+    """SDL folder. id=folder_id (UUID), title=folder name, kind="folder"."""
 
 
 # ─── handlers_notes ───────────────────────────────────────────────────────── #
@@ -30,38 +44,27 @@ class ListNotesResult(BaseModel):
     offset: int
     limit: int
     has_more: bool
-    next_offset: int | None
-    total_count: int | None
-
-
-class NoteRecord(BaseModel):
-    note_id: str | None
-    title: str | None
-    content: str
-    tags: list[str]
-    is_pinned: bool
-    is_archived: bool
-    word_count: int
-    folder_id: str | None
+    next_offset: Optional[int]
+    total_count: Optional[int]
 
 
 class CreateNoteResult(BaseModel):
-    note_id: str | None
-    title: str | None
-    folder_id: str | None
+    note_id: Optional[str] = None
+    title: Optional[str] = None
+    folder_id: Optional[str] = None
 
 
 class UpdateNoteResult(BaseModel):
     note_id: str
     title: str
     was_changed: bool
-    fields_updated: list[str] | None = None
+    fields_updated: Optional[list[str]] = None
 
 
 class MoveNoteResult(BaseModel):
     note_id: str
     title: str
-    folder_id: str | None
+    folder_id: Optional[str]
     moved_to: str
 
 
@@ -75,13 +78,6 @@ class BulkDeleteNotesResult(BaseModel):
     permanent: bool
 
 
-class SearchNoteItem(BaseModel):
-    note_id: str | None
-    title: str | None
-    excerpt: str
-    # is_archived intentionally omitted — backend search endpoint does not return it
-
-
 class SearchNotesResult(BaseModel):
     results: list[SearchNoteItem]
     query: str
@@ -89,27 +85,27 @@ class SearchNotesResult(BaseModel):
     offset: int
     limit: int
     has_more: bool
-    next_offset: int | None
-    total_count: int | None
+    next_offset: Optional[int]
+    total_count: Optional[int]
 
 
 # ─── handlers_folders ─────────────────────────────────────────────────────── #
 
 class ListFoldersResult(BaseModel):
-    folders: list[FolderItem]
+    folders: list[FolderEntity]
     total: int
 
 
 class ResolveFolderResult(BaseModel):
-    folder_id: str | None
-    name: str | None
+    folder_id: Optional[str]
+    name: Optional[str]
     match_quality: str
-    candidates: list[FolderItem] | None = None
+    candidates: Optional[list[FolderEntity]] = None
 
 
 class CreateFolderResult(BaseModel):
-    folder_id: str | None
-    name: str | None
+    folder_id: Optional[str]
+    name: Optional[str]
     refresh_panels: list[str]
 
 
@@ -141,14 +137,14 @@ class TrashNoteItem(BaseModel):
 class ListTrashResult(BaseModel):
     trash_notes: list[TrashNoteItem]
     page_size: int
-    total_count: int | None
+    total_count: Optional[int]
     has_more: bool
 
 
 class RestoreNoteResult(BaseModel):
     note_id: str
     title: str
-    folder_id: str | None
+    folder_id: Optional[str]
 
 
 class EmptyTrashResult(BaseModel):
@@ -170,7 +166,7 @@ class DeleteAttachmentResult(BaseModel):
 # ─── handlers_export ──────────────────────────────────────────────────────── #
 
 class DuplicateNoteResult(BaseModel):
-    note_id: str | None
+    note_id: Optional[str]
     refresh_panels: list[str]
 
 

@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.11.0] — 2026-05-31
+
+### Changed
+
+- **SDL migration (SDK 5.2.0).** `NoteEntity` (sdl.Entity + Bodied + Categorized) replaces
+  `NoteRecord` for `get_note` — id/title/kind read directly by kernel entity focus.
+  `NoteListItem` (sdl.Entity + Categorized) for list results. `SearchNoteItem` (sdl.Entity)
+  for search results. `FolderEntity` (sdl.Entity) replaces `FolderItem` in folder lists.
+- **SDK bump** `5.0.2` → `5.2.0`.
+- `models_return` added to `main.py` hot-reload purge list.
+
 ## [3.10.0] — 2026-05-20
 
 ### Fixed

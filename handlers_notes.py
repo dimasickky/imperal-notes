@@ -15,7 +15,8 @@ from models_notes import (  # noqa: E402
     NoteIdParams, SearchNotesParams, UpdateNoteParams,
 )
 from models_return import (
-    ListNotesResult, NoteRecord, CreateNoteResult, UpdateNoteResult,
+    ListNotesResult, NoteEntity, NoteListItem, SearchNoteItem,
+    CreateNoteResult, UpdateNoteResult,
     MoveNoteResult, DeleteNoteResult, BulkDeleteNotesResult, SearchNotesResult,
 )
 
@@ -67,15 +68,19 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
 
         return ActionResult.success(
             data={
-                "notes": [{
-                    "note_id":     n["id"],
-                    "title":       n["title"],
-                    "word_count":  n.get("word_count", 0),
-                    "is_pinned":   n.get("is_pinned", False),
-                    "is_archived": n.get("is_archived", False),
-                    "tags":        n.get("tags", []),
-                    "folder_id":   n.get("folder_id"),
-                } for n in notes],
+                "notes": [
+                    NoteListItem(
+                        id=n["id"],
+                        title=n["title"] or "Untitled",
+                        kind="note",
+                        tags=n.get("tags") or [],
+                        is_pinned=n.get("is_pinned", False),
+                        is_archived=n.get("is_archived", False),
+                        word_count=n.get("word_count", 0),
+                        folder_id=n.get("folder_id"),
+                    )
+                    for n in notes
+                ],
                 "page_size":   len(notes),
                 "offset":      params.offset,
                 "limit":       params.limit,
@@ -100,7 +105,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
     "get_note",
     action_type="read",
     description="Get full content of a note by ID.",
-    data_model=NoteRecord,
+    data_model=NoteEntity,
 )
 async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
@@ -108,18 +113,20 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
             return ActionResult.error(err)
         data = await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)})
         note = data.get("note", {})
+        entity = NoteEntity(
+            id=note.get("id"),
+            title=note.get("title") or "Untitled",
+            kind="note",
+            body=note.get("content_text", ""),
+            tags=note.get("tags") or [],
+            is_pinned=note.get("is_pinned", False),
+            is_archived=note.get("is_archived", False),
+            word_count=note.get("word_count", 0),
+            folder_id=note.get("folder_id"),
+        )
         return ActionResult.success(
-            data={
-                "note_id":     note.get("id"),
-                "title":       note.get("title"),
-                "content":     note.get("content_text", ""),
-                "tags":        note.get("tags", []),
-                "is_pinned":   note.get("is_pinned", False),
-                "is_archived": note.get("is_archived", False),
-                "word_count":  note.get("word_count", 0),
-                "folder_id":   note.get("folder_id"),
-            },
-            summary=f"Note: {note.get('title', 'Untitled')}",
+            data=entity,
+            summary=f"Note '{entity.title}' (id={entity.id})",
         )
     except NotesAPIError as e:
         return ActionResult.error(f"get_note backend returned {e.status_code}: {e.detail}")
@@ -408,11 +415,15 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
 
         return ActionResult.success(
             data={
-                "results": [{
-                    "note_id": r.get("id"),
-                    "title":   r.get("title"),
-                    "excerpt": r.get("excerpt", "")[:200],
-                } for r in results],
+                "results": [
+                    SearchNoteItem(
+                        id=r.get("id"),
+                        title=r.get("title") or "Untitled",
+                        kind="note",
+                        excerpt=r.get("excerpt", "")[:200],
+                    )
+                    for r in results
+                ],
                 "query":       params.query,
                 "page_size":   len(results),
                 "offset":      params.offset,

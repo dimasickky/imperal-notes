@@ -13,6 +13,7 @@ from models_return import (
     ListFoldersResult, ResolveFolderResult, CreateFolderResult, RenameFolderResult,
     DeleteFolderResult, DeleteFolderWithContentsResult,
     ListTrashResult, RestoreNoteResult, EmptyTrashResult,
+    FolderEntity,
 )
 
 log = logging.getLogger("notes.handlers")
@@ -112,7 +113,7 @@ async def fn_list_folders(ctx, params: NoParams) -> ActionResult:
             "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
         })).get("folders", [])
         return ActionResult.success(
-            data={"folders": [{"folder_id": f["id"], "name": f["name"]} for f in folders],
+            data={"folders": [FolderEntity(id=f["id"], title=f["name"], kind="folder") for f in folders],
                   "total": len(folders)},
             summary=f"Found {len(folders)} folder(s)",
         )
@@ -160,7 +161,10 @@ async def fn_resolve_folder(ctx, params: ResolveFolderParams) -> ActionResult:
                     "folder_id":     None,
                     "name":          None,
                     "match_quality": "none",
-                    "candidates":    [{"folder_id": f["id"], "name": f["name"]} for f in folders],
+                    "candidates": [
+                        FolderEntity(id=f["id"], title=f["name"], kind="folder")
+                        for f in folders
+                    ],
                 },
                 summary=f"No folder named '{params.name}' — {len(folders)} folder(s) exist",
             )
