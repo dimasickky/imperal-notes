@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "5.2.0",
   "app_id": "notes",
-  "version": "3.11.1",
+  "version": "3.12.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -774,7 +774,7 @@
     },
     {
       "name": "update_note",
-      "description": "Update note title, content, tags, or pin status.",
+      "description": "Update note fields (title, tags, pin) or REPLACE its content. WARNING: content_text OVERWRITES the entire body — to ADD text to an existing note use append_to_note instead.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [
@@ -872,6 +872,317 @@
         ],
         "title": "UpdateNoteResult",
         "type": "object"
+      },
+      "event": "updated",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "append_to_note",
+      "description": "Append text to the END of an existing note's body WITHOUT overwriting it. Reads the current note, adds the new text after the existing content, then saves. Use this for any 'add to note / append / допиши / добавь в заметку' request — never use update_note to add content, because update_note REPLACES the whole body.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "update:note"
+      ],
+      "id_projection": "note_id",
+      "params_schema": {
+        "description": "Append text to the END of an existing note's body (never overwrites).",
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID to append to. Required.",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "content_text": {
+            "default": "",
+            "description": "Text to append AFTER the existing note body. The existing content is preserved; this text is added to the end. Field name is 'content_text'.",
+            "title": "Content Text",
+            "type": "string"
+          }
+        },
+        "title": "AppendNoteParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "Ref": {
+            "description": "Lightweight reference to another entity (parent/related/list-item/cross-app).\n\nCarries ``title`` so the kernel can render/resolve without a second lookup.",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "kind": {
+                "title": "Kind",
+                "type": "string"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "app_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "App Id"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "title"
+            ],
+            "title": "Ref",
+            "type": "object"
+          }
+        },
+        "description": "Full SDL note entity. id=note_id (UUID), title=note title, kind=\"note\".\nsdl.Bodied provides: body (content), body_format.\nsdl.Categorized provides: tags.",
+        "properties": {
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tags",
+            "x-sdl-role": "content.tags"
+          },
+          "categories": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/Ref"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Categories",
+            "x-sdl-role": "content.categories"
+          },
+          "topics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Topics",
+            "x-sdl-role": "content.topics"
+          },
+          "keywords": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Keywords",
+            "x-sdl-role": "content.keywords"
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/Ref"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Labels",
+            "x-sdl-role": "content.labels"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Body",
+            "x-sdl-role": "content.body"
+          },
+          "body_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "md",
+                  "html",
+                  "plain",
+                  "rich"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Body Format",
+            "x-sdl-role": "content.body_format"
+          },
+          "raw_body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Raw Body",
+            "x-sdl-role": "content.raw_body"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "is_pinned": {
+            "default": false,
+            "title": "Is Pinned",
+            "type": "boolean"
+          },
+          "is_archived": {
+            "default": false,
+            "title": "Is Archived",
+            "type": "boolean"
+          },
+          "word_count": {
+            "default": 0,
+            "title": "Word Count",
+            "type": "integer"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Folder Id"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "NoteEntity",
+        "type": "object",
+        "x-sdl": "entity"
       },
       "event": "updated",
       "background": false,

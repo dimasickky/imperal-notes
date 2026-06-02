@@ -1,4 +1,4 @@
-"""Notes · entrypoint."""
+"""Notes · entrypoint (v3.12.0 — adds append_to_note)."""
 from __future__ import annotations
 
 import sys, os

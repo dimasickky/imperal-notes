@@ -11,8 +11,8 @@ from app import (
 )
 from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
-    CreateNoteParams, DeleteNotesFromFolderParams, ListNotesParams, MoveNoteParams,
-    NoteIdParams, SearchNotesParams, UpdateNoteParams,
+    AppendNoteParams, CreateNoteParams, DeleteNotesFromFolderParams, ListNotesParams,
+    MoveNoteParams, NoteIdParams, SearchNotesParams, UpdateNoteParams,
 )
 from models_return import (
     ListNotesResult, NoteEntity, NoteListItem, SearchNoteItem,
@@ -200,7 +200,11 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
     chain_callable=True,
     effects=["update:note"],
     event="updated",
-    description="Update note title, content, tags, or pin status.",
+    description=(
+        "Update note fields (title, tags, pin) or REPLACE its content. "
+        "WARNING: content_text OVERWRITES the entire body — to ADD text to an "
+        "existing note use append_to_note instead."
+    ),
     data_model=UpdateNoteResult,
 )
 async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
@@ -246,6 +250,64 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
         return ActionResult.error(f"update_note backend returned {e.status_code}: {e.detail}")
     except Exception as e:
         log.error("update_note: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+
+
+@chat.function(
+    "append_to_note",
+    action_type="write",
+    chain_callable=True,
+    id_projection="note_id",
+    effects=["update:note"],
+    event="updated",
+    description=(
+        "Append text to the END of an existing note's body WITHOUT overwriting it. "
+        "Reads the current note, adds the new text after the existing content, then saves. "
+        "Use this for any 'add to note / append / допиши / добавь в заметку' request — never "
+        "use update_note to add content, because update_note REPLACES the whole body."
+    ),
+    data_model=NoteEntity,
+)
+async def fn_append_to_note(ctx, params: AppendNoteParams) -> ActionResult:
+    try:
+        if err := _bad_id(params.note_id):
+            return ActionResult.error(err)
+        addition = params.content_text.strip()
+        if not addition:
+            return ActionResult.error(
+                "Nothing to append. Pass content_text with the text to add."
+            )
+
+        user_id = require_user_id(ctx)
+        current = (await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": user_id})).get("note", {})
+        existing = (current.get("content_text") or "").rstrip()
+        merged = f"{existing}\n\n{addition}" if existing else addition
+
+        note = (await _api_patch(
+            ctx, f"/notes/{params.note_id}",
+            {"user_id": user_id},
+            {"content_text": merged},
+        )).get("note", {})
+
+        entity = NoteEntity(
+            id=note.get("id") or params.note_id,
+            title=note.get("title") or current.get("title") or "Untitled",
+            kind="note",
+            body=note.get("content_text", merged),
+            tags=note.get("tags") or [],
+            is_pinned=note.get("is_pinned", False),
+            is_archived=note.get("is_archived", False),
+            word_count=note.get("word_count", 0),
+            folder_id=note.get("folder_id"),
+        )
+        return ActionResult.success(
+            data=entity,
+            summary=f"Appended to note '{entity.title}'",
+        )
+    except NotesAPIError as e:
+        return ActionResult.error(f"append_to_note backend returned {e.status_code}: {e.detail}")
+    except Exception as e:
+        log.error("append_to_note: %s", e)
         return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 

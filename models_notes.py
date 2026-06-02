@@ -160,6 +160,24 @@ class UpdateNoteParams(BaseModel):
         return v
 
 
+class AppendNoteParams(BaseModel):
+    """Append text to the END of an existing note's body (never overwrites)."""
+    model_config = _MODEL_CONFIG
+
+    note_id: str      = Field(
+        default="", description="Note UUID to append to. Required.",
+        validation_alias=AliasChoices("note_id", "id", "noteId", "uuid"),
+    )
+    content_text: str = Field(
+        default="",
+        description=(
+            "Text to append AFTER the existing note body. The existing content is "
+            "preserved; this text is added to the end. Field name is 'content_text'."
+        ),
+        validation_alias=AliasChoices("content_text", "content", "body", "text", "append"),
+    )
+
+
 class MoveNoteParams(BaseModel):
     """Move note to a folder."""
     model_config = _MODEL_CONFIG

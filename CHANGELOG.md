@@ -6,6 +6,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.12.0] — 2026-06-02
+
+### Added
+
+- **`append_to_note(note_id, content_text)`** — appends text to the END of a note's body
+  WITHOUT overwriting it (reads the current body, concatenates `old + "\n\n" + new`, then
+  PATCHes the full merged text). `update_note(content_text=...)` is a FULL REPLACE with no
+  append affordance, which forced the LLM to regenerate the entire body from incomplete
+  context — losing prior content, or (when it had no real data) writing the user's own
+  instruction text as the note body. `append_to_note` removes that pressure. Returns
+  `NoteEntity` (SDL, `x-sdl=entity`) so kernel entity focus captures `note_id`/`title`
+  cross-turn — same pattern as `resolve_folder` in 3.11.1.
+
+### Changed
+
+- **`update_note` description** now warns that `content_text` OVERWRITES the entire body
+  and points to `append_to_note` for adding content.
+- **system_prompt** — split "replace content" (`update_note`) vs "add/append content"
+  (`append_to_note`); explicit rule that "допиши/добавь в заметку" routes to `append_to_note`
+  and NEVER to `update_note`.
+
 ## [3.11.1] — 2026-06-01
 
 ### Fixed
