@@ -171,7 +171,7 @@ async def _resolve_folder_name(ctx, name: str) -> str | None:
 
 ext = Extension(
     "notes",
-    version="3.12.0",
+    version="3.13.0",
     capabilities=["notes:read", "notes:write"],
     display_name="Notes",
     description=(

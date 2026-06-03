@@ -6,6 +6,38 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.13.0] — 2026-06-03
+
+### Changed
+
+- **SDL: all note / folder / trash list reads now return real `sdl.EntityList[…]`**
+  (`items=[...]`, `x-sdl="entity-list"`), mirroring the tasks v3.31.0 migration. Affected:
+  `list_notes` → `sdl.EntityList[NoteListItem]`, `search_notes` → `sdl.EntityList[SearchNoteItem]`,
+  `list_folders` → `sdl.EntityList[FolderEntity]`, `list_trash` → `sdl.EntityList[TrashNoteItem]`.
+  Legacy list keys (`notes` / `results` / `folders` / `trash_notes`) are replaced by the canonical
+  `items`; pagination cursors (`page_size`, `offset`, `limit`, `next_offset`, `total_count`, `query`)
+  are kept as additive typed fields (`has_more` / `total` inherited from `EntityList`).
+- **`TrashNoteItem` is now a real `sdl.Entity`** (`sdl.Entity, sdl.Categorized`; `id`=note_id,
+  `kind="note"`) instead of a plain ad-hoc dict (`{note_id, title, …}`), so trash items expose a
+  canonical SDL triple.
+- **List items are `model_dump()`-ed to plain dicts** in the result payload (was: raw pydantic
+  objects inside a plain `dict`, which `ActionResult.to_dict()` did not recurse into → repr-strings
+  in `data_facts`).
+- **Why:** the kernel builds the cross-turn salient set / resolves plural anaphora ("удали эти",
+  "вторую") / offers proactive set-actions ONLY from results it recognizes as an SDL entity-list —
+  singular focus via the `x-sdl` return-schema marker (`core/entity_focus.py`), plural/offer via the
+  structural `data["items"]` detector (`resolve_gate._entitylist_ids_titles`). Note/folder reads
+  previously matched neither (legacy keys, no top-level `x-sdl="entity-list"`), so notes & folders
+  were invisible to anaphora/proactive while mail/users worked.
+
+### Notes
+
+- Pure extension-side change; the the backend wire contract is unchanged. Panels / skeleton read the
+  backend response (`{"notes":[…]}` / `{"folders":[…]}`) directly, NOT the chat-tool result, so the
+  result-shape change has no panel/skeleton blast radius.
+
+---
+
 ## [3.12.0] — 2026-06-02
 
 ### Added

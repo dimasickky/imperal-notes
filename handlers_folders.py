@@ -13,7 +13,7 @@ from models_return import (
     ListFoldersResult, ResolveFolderResult, CreateFolderResult, RenameFolderResult,
     DeleteFolderResult, DeleteFolderWithContentsResult,
     ListTrashResult, RestoreNoteResult, EmptyTrashResult,
-    FolderEntity,
+    FolderEntity, TrashNoteItem,
 )
 
 log = logging.getLogger("notes.handlers")
@@ -113,7 +113,7 @@ async def fn_list_folders(ctx, params: NoParams) -> ActionResult:
             "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
         })).get("folders", [])
         return ActionResult.success(
-            data={"folders": [FolderEntity(id=f["id"], title=f["name"], kind="folder") for f in folders],
+            data={"items": [FolderEntity(id=f["id"], title=f["name"], kind="folder").model_dump() for f in folders],
                   "total": len(folders)},
             summary=f"Found {len(folders)} folder(s)",
         )
@@ -349,9 +349,11 @@ async def fn_list_trash(ctx, params: NoParams) -> ActionResult:
         has_more = resp.get("has_more", False)
         return ActionResult.success(
             data={
-                "trash_notes": [
-                    {"note_id": n["id"], "title": n["title"],
-                     "word_count": n.get("word_count", 0), "tags": n.get("tags", [])}
+                "items": [
+                    TrashNoteItem(
+                        id=n["id"], title=n["title"], kind="note",
+                        word_count=n.get("word_count", 0), tags=n.get("tags", []),
+                    ).model_dump()
                     for n in notes
                 ],
                 "page_size":   len(notes),

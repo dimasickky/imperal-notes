@@ -38,14 +38,14 @@ class FolderEntity(sdl.Entity):
 
 # ─── handlers_notes ───────────────────────────────────────────────────────── #
 
-class ListNotesResult(BaseModel):
-    notes: list[NoteListItem]
-    page_size: int
-    offset: int
-    limit: int
-    has_more: bool
-    next_offset: Optional[int]
-    total_count: Optional[int]
+class ListNotesResult(sdl.EntityList[NoteListItem]):
+    """list_notes — a REAL sdl.EntityList[NoteListItem] (items=[...], x-sdl='entity-list').
+    Pagination cursors carried as additive typed fields; has_more inherited from EntityList."""
+    page_size: int = 0
+    offset: int = 0
+    limit: int = 0
+    next_offset: Optional[int] = None
+    total_count: Optional[int] = None
 
 
 class CreateNoteResult(BaseModel):
@@ -78,22 +78,23 @@ class BulkDeleteNotesResult(BaseModel):
     permanent: bool
 
 
-class SearchNotesResult(BaseModel):
-    results: list[SearchNoteItem]
-    query: str
-    page_size: int
-    offset: int
-    limit: int
-    has_more: bool
-    next_offset: Optional[int]
-    total_count: Optional[int]
+class SearchNotesResult(sdl.EntityList[SearchNoteItem]):
+    """search_notes — a REAL sdl.EntityList[SearchNoteItem]; query + pagination cursors
+    carried as additive typed fields; has_more inherited from EntityList."""
+    query: str = ""
+    page_size: int = 0
+    offset: int = 0
+    limit: int = 0
+    next_offset: Optional[int] = None
+    total_count: Optional[int] = None
 
 
 # ─── handlers_folders ─────────────────────────────────────────────────────── #
 
-class ListFoldersResult(BaseModel):
-    folders: list[FolderEntity]
-    total: int
+class ListFoldersResult(sdl.EntityList[FolderEntity]):
+    """list_folders — a REAL sdl.EntityList[FolderEntity] (items=[...], total=N,
+    x-sdl='entity-list')."""
+    pass
 
 
 class ResolveFolderResult(BaseModel):
@@ -127,18 +128,17 @@ class DeleteFolderWithContentsResult(BaseModel):
     refresh_panels: list[str]
 
 
-class TrashNoteItem(BaseModel):
-    note_id: str
-    title: str
-    word_count: int
-    tags: list[str]
+class TrashNoteItem(sdl.Entity, sdl.Categorized):
+    """Slim SDL note entity for trash list results. id=note_id, kind='note';
+    sdl.Categorized provides tags."""
+    word_count: int = 0
 
 
-class ListTrashResult(BaseModel):
-    trash_notes: list[TrashNoteItem]
-    page_size: int
-    total_count: Optional[int]
-    has_more: bool
+class ListTrashResult(sdl.EntityList[TrashNoteItem]):
+    """list_trash — a REAL sdl.EntityList[TrashNoteItem]; page_size + total_count
+    carried as additive typed fields; has_more inherited from EntityList."""
+    page_size: int = 0
+    total_count: Optional[int] = None
 
 
 class RestoreNoteResult(BaseModel):

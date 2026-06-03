@@ -68,7 +68,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
 
         return ActionResult.success(
             data={
-                "notes": [
+                "items": [
                     NoteListItem(
                         id=n["id"],
                         title=n["title"] or "Untitled",
@@ -78,7 +78,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
                         is_archived=n.get("is_archived", False),
                         word_count=n.get("word_count", 0),
                         folder_id=n.get("folder_id"),
-                    )
+                    ).model_dump()
                     for n in notes
                 ],
                 "page_size":   len(notes),
@@ -477,13 +477,13 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
 
         return ActionResult.success(
             data={
-                "results": [
+                "items": [
                     SearchNoteItem(
                         id=r.get("id"),
                         title=r.get("title") or "Untitled",
                         kind="note",
                         excerpt=r.get("excerpt", "")[:200],
-                    )
+                    ).model_dump()
                     for r in results
                 ],
                 "query":       params.query,

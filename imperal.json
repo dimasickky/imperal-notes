@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "5.2.0",
   "app_id": "notes",
-  "version": "3.12.0",
+  "version": "3.13.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -314,29 +314,58 @@
             "type": "object"
           }
         },
+        "description": "list_notes — a REAL sdl.EntityList[NoteListItem] (items=[...], x-sdl='entity-list').\nPagination cursors carried as additive typed fields; has_more inherited from EntityList.",
         "properties": {
-          "notes": {
+          "items": {
             "items": {
               "$ref": "#/$defs/NoteListItem"
             },
-            "title": "Notes",
+            "title": "Items",
             "type": "array"
           },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
           "page_size": {
+            "default": 0,
             "title": "Page Size",
             "type": "integer"
           },
           "offset": {
+            "default": 0,
             "title": "Offset",
             "type": "integer"
           },
           "limit": {
+            "default": 0,
             "title": "Limit",
             "type": "integer"
-          },
-          "has_more": {
-            "title": "Has More",
-            "type": "boolean"
           },
           "next_offset": {
             "anyOf": [
@@ -347,6 +376,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Next Offset"
           },
           "total_count": {
@@ -358,20 +388,16 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Total Count"
           }
         },
         "required": [
-          "notes",
-          "page_size",
-          "offset",
-          "limit",
-          "has_more",
-          "next_offset",
-          "total_count"
+          "items"
         ],
         "title": "ListNotesResult",
-        "type": "object"
+        "type": "object",
+        "x-sdl": "entity-list"
       },
       "event": "",
       "background": false,
@@ -1522,33 +1548,63 @@
             "x-sdl": "entity"
           }
         },
+        "description": "search_notes — a REAL sdl.EntityList[SearchNoteItem]; query + pagination cursors\ncarried as additive typed fields; has_more inherited from EntityList.",
         "properties": {
-          "results": {
+          "items": {
             "items": {
               "$ref": "#/$defs/SearchNoteItem"
             },
-            "title": "Results",
+            "title": "Items",
             "type": "array"
           },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
           "query": {
+            "default": "",
             "title": "Query",
             "type": "string"
           },
           "page_size": {
+            "default": 0,
             "title": "Page Size",
             "type": "integer"
           },
           "offset": {
+            "default": 0,
             "title": "Offset",
             "type": "integer"
           },
           "limit": {
+            "default": 0,
             "title": "Limit",
             "type": "integer"
-          },
-          "has_more": {
-            "title": "Has More",
-            "type": "boolean"
           },
           "next_offset": {
             "anyOf": [
@@ -1559,6 +1615,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Next Offset"
           },
           "total_count": {
@@ -1570,21 +1627,16 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Total Count"
           }
         },
         "required": [
-          "results",
-          "query",
-          "page_size",
-          "offset",
-          "limit",
-          "has_more",
-          "next_offset",
-          "total_count"
+          "items"
         ],
         "title": "SearchNotesResult",
-        "type": "object"
+        "type": "object",
+        "x-sdl": "entity-list"
       },
       "event": "",
       "background": false,
@@ -1688,25 +1740,51 @@
             "x-sdl": "entity"
           }
         },
+        "description": "list_folders — a REAL sdl.EntityList[FolderEntity] (items=[...], total=N,\nx-sdl='entity-list').",
         "properties": {
-          "folders": {
+          "items": {
             "items": {
               "$ref": "#/$defs/FolderEntity"
             },
-            "title": "Folders",
+            "title": "Items",
             "type": "array"
           },
           "total": {
-            "title": "Total",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
           }
         },
         "required": [
-          "folders",
-          "total"
+          "items"
         ],
         "title": "ListFoldersResult",
-        "type": "object"
+        "type": "object",
+        "x-sdl": "entity-list"
       },
       "event": "",
       "background": false,
@@ -2074,47 +2152,255 @@
       },
       "return_schema": {
         "$defs": {
-          "TrashNoteItem": {
+          "Ref": {
+            "description": "Lightweight reference to another entity (parent/related/list-item/cross-app).\n\nCarries ``title`` so the kernel can render/resolve without a second lookup.",
             "properties": {
-              "note_id": {
-                "title": "Note Id",
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "kind": {
+                "title": "Kind",
                 "type": "string"
               },
               "title": {
                 "title": "Title",
                 "type": "string"
               },
-              "word_count": {
-                "title": "Word Count",
-                "type": "integer"
-              },
-              "tags": {
-                "items": {
-                  "type": "string"
-                },
-                "title": "Tags",
-                "type": "array"
+              "app_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "App Id"
               }
             },
             "required": [
-              "note_id",
-              "title",
-              "word_count",
-              "tags"
+              "id",
+              "kind",
+              "title"
+            ],
+            "title": "Ref",
+            "type": "object"
+          },
+          "TrashNoteItem": {
+            "description": "Slim SDL note entity for trash list results. id=note_id, kind='note';\nsdl.Categorized provides tags.",
+            "properties": {
+              "tags": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Tags",
+                "x-sdl-role": "content.tags"
+              },
+              "categories": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/Ref"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Categories",
+                "x-sdl-role": "content.categories"
+              },
+              "topics": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Topics",
+                "x-sdl-role": "content.topics"
+              },
+              "keywords": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Keywords",
+                "x-sdl-role": "content.keywords"
+              },
+              "labels": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/Ref"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Labels",
+                "x-sdl-role": "content.labels"
+              },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "kind": {
+                "default": "",
+                "title": "Kind",
+                "type": "string"
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Subtitle"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Url"
+              },
+              "word_count": {
+                "default": 0,
+                "title": "Word Count",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "title"
             ],
             "title": "TrashNoteItem",
-            "type": "object"
+            "type": "object",
+            "x-sdl": "entity"
           }
         },
+        "description": "list_trash — a REAL sdl.EntityList[TrashNoteItem]; page_size + total_count\ncarried as additive typed fields; has_more inherited from EntityList.",
         "properties": {
-          "trash_notes": {
+          "items": {
             "items": {
               "$ref": "#/$defs/TrashNoteItem"
             },
-            "title": "Trash Notes",
+            "title": "Items",
             "type": "array"
           },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
           "page_size": {
+            "default": 0,
             "title": "Page Size",
             "type": "integer"
           },
@@ -2127,21 +2413,16 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Total Count"
-          },
-          "has_more": {
-            "title": "Has More",
-            "type": "boolean"
           }
         },
         "required": [
-          "trash_notes",
-          "page_size",
-          "total_count",
-          "has_more"
+          "items"
         ],
         "title": "ListTrashResult",
-        "type": "object"
+        "type": "object",
+        "x-sdl": "entity-list"
       },
       "event": "",
       "background": false,
