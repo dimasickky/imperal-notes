@@ -24,7 +24,7 @@ _MODEL_CONFIG = ConfigDict(populate_by_name=True)
 
 
 class NoParams(BaseModel):
-    """Empty params model for @chat.function handlers that take no business inputs (V17)."""
+    """Empty params model for @chat.function handlers that take no business inputs."""
     model_config = _MODEL_CONFIG
 
 
