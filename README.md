@@ -19,7 +19,7 @@
 
 ## What is Imperal Notes?
 
-**Imperal Notes** is a first-party AI extension for [Imperal Cloud](https://imperal.io) — the world's first AI Cloud OS.
+**Imperal Notes** is an AI extension for [Imperal Cloud](https://imperal.io).
 
 It gives users a personal notebook where they can create, organize, and interact with their notes through natural language. The AI assistant understands context, remembers structure, and executes real operations — no manual clicking required.
 
@@ -43,7 +43,7 @@ User: "Move everything from Ideas to Work and pin the most important one"
 | **AI Chat** | Full natural language interface — create, search, edit, organize by talking |
 | **Rich Editor** | Tiptap-powered editor with headings, lists, code blocks, images |
 | **Folders** | Organize notes into folders with drag & drop support |
-| **Full-text Search** | MySQL-powered search across all note content |
+| **Full-text Search** | Full-text search across all note content |
 | **Trash & Restore** | Soft-delete with recycle bin, restore or permanently delete |
 | **Pin Notes** | Pin important notes to the top of any list |
 | **Tags** | Tag notes for cross-folder organization |
@@ -55,7 +55,7 @@ User: "Move everything from Ideas to Work and pin the most important one"
 
 ## Functions
 
-All functions are exposed through a single `ChatExtension` entry point (`tool_notes_chat`). The AI routes user intent to the correct function automatically.
+All functions are exposed to the AI assistant, which routes user intent to the correct function automatically.
 
 ### Notes
 
@@ -96,8 +96,10 @@ All functions are exposed through a single `ChatExtension` entry point (`tool_no
 
 ## Architecture
 
+The extension runs on the Imperal Cloud platform and talks to a hosted backend API over HTTP.
+
 ```
-Imperal Panel (panel.imperal.io)
+Imperal Panel
         │
         ├── Sidebar Panel (left)          ← @ext.panel("sidebar")
         │   folders + note list + trash     panels.py
@@ -105,27 +107,30 @@ Imperal Panel (panel.imperal.io)
         └── Editor Panel (center)         ← @ext.panel("editor")
             RichEditor + metadata           panels_editor.py
 
-Hub (imperal-hub namespace)
+AI assistant
         │
-        └── execute_sdk_tool
-                │
-                └── tool_notes_chat  ← ChatExtension entry point
-                        │
-                        ├── handlers_notes.py      (CRUD + search)
-                        ├── handlers_folders.py    (folders + trash)
-                        ├── handlers_panel_actions.py (editor save)
-                        └── skeleton.py            (background stats)
+        ├── handlers_notes.py      (CRUD + search)
+        ├── handlers_folders.py    (folders + trash)
+        ├── handlers_panel_actions.py (editor save)
+        └── skeleton.py            (background stats)
 
-Notes API  (hosted FastAPI backend)
+Backend API  (hosted)
         │
-        └── MySQL-compatible database (notes_db)
+        └── Persistent database
+```
+
+The extension is configured via environment variables (URL + API key) pointing at the hosted backend, for example:
+
+```
+NOTES_API_URL=https://your-backend.example.com
+NOTES_API_KEY=<your-api-key>
 ```
 
 ### File Structure
 
 ```
 imperal-notes/
-├── main.py                    # Entry point — sys.modules cleanup + imports
+├── main.py                    # Entry point — module reload setup + imports
 ├── app.py                     # Extension setup, HTTP helpers, health check
 ├── handlers_notes.py          # Note CRUD + search functions
 ├── handlers_folders.py        # Folder management + trash functions
@@ -172,7 +177,7 @@ imperal dev
 ### SDK Compliance
 
 Passes all 12 Imperal SDK validation rules (V1–V12):
-- Single `ChatExtension` entry point
+- Single AI chat entry point
 - All `@chat.function` handlers return `ActionResult`
 - Pydantic `BaseModel` params with `Field(description=...)`
 - All write/destructive functions declare `event=`
@@ -194,7 +199,5 @@ Passes all 12 Imperal SDK validation rules (V1–V12):
 <div align="center">
 
 **Built for [Imperal Cloud](https://imperal.io)**
-
-*The AI Cloud OS.*
 
 </div>

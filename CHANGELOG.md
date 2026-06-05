@@ -23,16 +23,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **List items are `model_dump()`-ed to plain dicts** in the result payload (was: raw pydantic
   objects inside a plain `dict`, which `ActionResult.to_dict()` did not recurse into → repr-strings
   in `data_facts`).
-- **Why:** the kernel builds the cross-turn salient set / resolves plural anaphora ("удали эти",
-  "вторую") / offers proactive set-actions ONLY from results it recognizes as an SDL entity-list —
-  singular focus via the `x-sdl` return-schema marker (`core/entity_focus.py`), plural/offer via the
-  structural `data["items"]` detector (`resolve_gate._entitylist_ids_titles`). Note/folder reads
-  previously matched neither (legacy keys, no top-level `x-sdl="entity-list"`), so notes & folders
-  were invisible to anaphora/proactive while mail/users worked.
+- **Why:** the platform builds the cross-turn salient set / resolves plural anaphora ("удали эти",
+  "вторую") / offers proactive set-actions ONLY from results it recognizes as an SDL entity-list.
+  Note/folder reads previously did not match that shape (legacy list keys), so notes & folders
+  were invisible to anaphora and proactive offers while other entity types worked. This release
+  makes notes & folders behave consistently.
 
 ### Notes
 
-- Pure extension-side change; the the backend wire contract is unchanged. Panels / skeleton read the
+- Pure extension-side change; the backend wire contract is unchanged. Panels / skeleton read the
   backend response (`{"notes":[…]}` / `{"folders":[…]}`) directly, NOT the chat-tool result, so the
   result-shape change has no panel/skeleton blast radius.
 
@@ -48,7 +47,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   append affordance, which forced the LLM to regenerate the entire body from incomplete
   context — losing prior content, or (when it had no real data) writing the user's own
   instruction text as the note body. `append_to_note` removes that pressure. Returns
-  `NoteEntity` (SDL, `x-sdl=entity`) so kernel entity focus captures `note_id`/`title`
+  `NoteEntity` (SDL, `x-sdl=entity`) so the platform captures `note_id`/`title`
   cross-turn — same pattern as `resolve_folder` in 3.11.1.
 
 ### Changed
@@ -64,9 +63,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Fixed
 
 - **`resolve_folder` now returns `FolderEntity` (SDL entity, `x-sdl=entity`).**
-  Previously returned `ResolveFolderResult` (plain BaseModel) — entity focus couldn't
-  capture the folder UUID/title from it via SDL path. Now returns a single `FolderEntity`
-  with canonical `id`/`title`/`kind`, so kernel entity focus captures the real folder
+  Previously returned `ResolveFolderResult` (plain BaseModel) — the platform couldn't
+  capture the folder UUID/title from it via the SDL path. Now returns a single `FolderEntity`
+  with canonical `id`/`title`/`kind`, so the platform captures the real folder
   UUID immediately after resolve_folder is called, preventing hallucinated folder IDs
   in subsequent `create_note` chain steps.
   Not-found case now returns `ActionResult.error` with available folder names.
@@ -76,7 +75,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Changed
 
 - **SDL migration (SDK 5.2.0).** `NoteEntity` (sdl.Entity + Bodied + Categorized) replaces
-  `NoteRecord` for `get_note` — id/title/kind read directly by kernel entity focus.
+  `NoteRecord` for `get_note` — id/title/kind read directly by the platform.
   `NoteListItem` (sdl.Entity + Categorized) for list results. `SearchNoteItem` (sdl.Entity)
   for search results. `FolderEntity` (sdl.Entity) replaces `FolderItem` in folder lists.
 - **SDK bump** `5.0.2` → `5.2.0`.
@@ -108,7 +107,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
-- **SDK 5.0.1** — bumped `imperal-sdk` to `5.0.1` (Federal Typed Return Contract, additive).
+- **SDK 5.0.1** — bumped `imperal-sdk` to `5.0.1` (typed return contract, additive).
 - **`data_model=` migration** — all 23 `@chat.function` handlers now declare typed return DTOs via `data_model=`. New `models_return.py` with 22 Pydantic classes covering notes, folders, trash, attachments, export, and panel actions. Enables `$REF` path validation and classifier envelope `return_fields`.
 
 ---
@@ -117,8 +116,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
-- **SDK 5.0.0 migration** — bumped `imperal-sdk` to `5.0.0`. Removed deprecated `system_prompt=` kwarg from `ChatExtension` (no-op in 5.0.0). Manifest rebuilt — `tool_notes_chat` orchestrator-tool entry removed (V25 compliance, `I-LOADER-REJECTS-LEGACY-LLM-ROUTER`).
-- **`update_note` — no-op detection** — handler now fetches current note before PATCH and compares fields. If nothing changed, returns `was_changed: false` without writing to backend. Response always includes `was_changed: bool` for accurate kernel narration.
+- **SDK 5.0.0 migration** — bumped `imperal-sdk` to `5.0.0`. Removed deprecated `system_prompt=` kwarg from `ChatExtension` (no-op in 5.0.0). Manifest rebuilt — the legacy `tool_notes_chat` orchestrator-tool entry removed; the platform now dispatches handlers directly.
+- **`update_note` — no-op detection** — handler now fetches current note before PATCH and compares fields. If nothing changed, returns `was_changed: false` without writing to backend. Response always includes `was_changed: bool` for accurate narration.
 
 ---
 
@@ -127,7 +126,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Fixed
 
 - **Editor buttons unresponsive** — removed `on_change` from `RichEditor` (was firing on every keystroke, triggering `note_save` + panel re-render each character typed, which cancelled in-flight button clicks). `on_save` (Ctrl+S / toolbar button) is sufficient.
-- **I-MAGIC-UX**: three places leaked raw exception details to UI — `panels_editor.py` create-note error, `note_save` unknown-field branch, `note_save` `NotesAPIError` branch — all replaced with generic messages + `log.error`.
+- **Error UX**: three places leaked raw exception details to UI — `panels_editor.py` create-note error, `note_save` unknown-field branch, `note_save` `NotesAPIError` branch — all replaced with generic messages + `log.error`.
 
 ---
 
@@ -136,8 +135,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Changed
 
 - SDK bumped `4.2.6 → 4.2.10` — picks up OAuth callback infrastructure + `ctx.webhook_url()` (4.2.7), `SecretDecl` in Manifest schema (4.2.8/4.2.9), and `chain_callable=True` default for read handlers (4.2.10).
-- `delete_notes_from_folder`: added `id_projection="folder_id"` — fixes kernel chain-step injection for compound handler name (heuristic would derive wrong field).
-- `delete_attachment`: corrected `id_projection` from `"note_id"` → `"att_id"` — kernel now correctly injects attachment ID into cross-step deletion chains.
+- `delete_notes_from_folder`: added `id_projection="folder_id"` — fixes deleting notes from a folder by name in multi-step operations (the platform previously derived the wrong target field for this compound handler name).
+- `delete_attachment`: corrected `id_projection` from `"note_id"` → `"att_id"` — the platform now correctly targets the attachment ID in multi-step deletion operations.
 
 ---
 
@@ -161,19 +160,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
-- **SDK bumped `4.1.3 → 4.2.0`** — picks up manifest emitter/schema symmetry gate (4.1.6), `@ext.panel(center_overlay=True)` declarative kwarg (4.1.8), `imperal init` template fix (4.1.9), and V31 system-app validator (4.2.0). No behavioral changes for this extension.
+- **SDK bumped `4.1.3 → 4.2.0`** — picks up manifest emitter/schema symmetry gate (4.1.6), `@ext.panel(center_overlay=True)` declarative kwarg (4.1.8), `imperal init` template fix (4.1.9), and an added validator (4.2.0). No behavioral changes for this extension.
 - **Icon replaced** — new designer icon (notes-dark.svg) from Dimasickky design.
 
 ### Fixed
 
-- **[I-MAGIC-UX] All 23 raw exception leaks eliminated** across all handler files. Raw `str(e)` and `f"...{e}"` were reaching users in violation of the federal I-MAGIC-UX-1/2 invariants. Each site now does `log.error("fn_name: %s", e)` for operator visibility and returns a stable `ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)`.
+- **[Error UX] All 23 raw exception leaks eliminated** across all handler files. Raw `str(e)` and `f"...{e}"` were reaching users. Each site now does `log.error("fn_name: %s", e)` for operator visibility and returns a stable `ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)`.
   - `handlers_notes.py` — 9 sites (list/get/create/update/move/delete/permanent_delete/bulk_delete/search)
   - `handlers_folders.py` — 9 sites (list/resolve/create/rename/delete/delete_with_contents/list_trash/restore/empty_trash)
   - `handlers_export.py` — 2 sites (duplicate_note, export_markdown)
   - `handlers_attachments.py` — 2 sites (upload_attachment, delete_attachment)
   - `handlers_panel_actions.py` — 1 site (note_save)
-- **[Skeleton] `"error": str(e)` removed from degraded return in `skeleton.py`** — skeleton handlers must return zero-value dicts on failure; the previous `{"error": str(e)}` was injecting garbage into the LLM classifier context on backend failure.
-- **[V18] `from __future__ import annotations` removed** from `handlers_folders.py`, `handlers_attachments.py`, `handlers_panel_actions.py` — these files define Pydantic `BaseModel` param classes. Lazy string annotations created forward-reference risk that V18 checks for. Files that only import models retain it.
+- **[Skeleton] `"error": str(e)` removed from degraded return in `skeleton.py`** — skeleton handlers must return zero-value dicts on failure; the previous `{"error": str(e)}` was injecting garbage into the AI assistant context on backend failure.
+- **[V18] `from __future__ import annotations` removed** from `handlers_folders.py`, `handlers_attachments.py`, `handlers_panel_actions.py` — these files define Pydantic `BaseModel` param classes. Lazy string annotations created forward-reference risk that the SDK validator checks for. Files that only import models retain it.
 - **[Logging] `import logging` + `log` added** to `handlers_folders.py`, `handlers_export.py`, `handlers_attachments.py`, `handlers_panel_actions.py` — required for the error logging pattern above.
 
 ---
@@ -186,7 +185,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **[P0] `fn_move_note` — folder name → silent DB corruption** — same auto-resolve fix. Previously `folder_id="ало"` was stored verbatim in the DB (API PATCH has no `folder_exists` guard), leaving the note orphaned with a non-existent folder_id.
 - **[P0] `fn_list_notes` — client-side tag re-filter removed** — server already does `JSON_CONTAINS` AND-match per tag. The extra client filter ran on the already-filtered page, reducing correct results. Now trusts server output entirely.
 - **[P0] `fn_list_notes` — folder_id auto-resolved** — same `_resolve_folder_id_or_name` pattern. Previously a folder name silently produced `WHERE folder_id = "name"` → 0 results without error.
-- **[P1] `fn_duplicate_note` — `event="notes.created"` → `event="created"`** — double prefix `notes.notes.created` was emitted; sidebar never refreshed after duplication. Fixed to `event="created"` → kernel emits `notes.created` correctly.
+- **[P1] `fn_duplicate_note` — `event="notes.created"` → `event="created"`** — double prefix `notes.notes.created` was emitted; sidebar never refreshed after duplication. Fixed to `event="created"` → the platform emits `notes.created` correctly.
 - **[P1] `fn_rename_folder` — folder name auto-resolved** — previously passed UUID raw; if LLM passed a name, PATCH silently returned `{status: "updated"}` with 0 rows updated.
 - **[P1] `fn_delete_folder` — folder name auto-resolved** — same pattern; silent no-op on name input.
 - **[P1] `fn_restore_note` — added `_bad_id()` UUID guard** — consistent with all other note-ID handlers. Previously only checked for empty string.
@@ -217,12 +216,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Changed
 
 - **SDK upgraded to `imperal-sdk==4.1.2`** — picks up Pydantic feedback-loop (4.1.0), narration schema tightening (4.1.1), and `id_projection` chain dispatch (4.1.2).
-- **`id_projection` added to all compound-named chain functions** — fixes kernel chain-step target projection for names where the verb-prefix heuristic produced a non-existent field:
-  - `upload_attachment` → `id_projection="note_id"` (heuristic: `attachment_id` ✗)
-  - `delete_attachment` → `id_projection="note_id"` (heuristic: `attachment_id` → wrong alias)
-  - `delete_folder_with_contents` → `id_projection="folder_id"` (heuristic: `folder_with_contents_id` ✗)
-  - `permanent_delete_note` → `id_projection="note_id"` (heuristic strips "permanent" → `delete_note_id` ✗)
-  - `note_save` → `id_projection="note_id"` (heuristic strips "note" → `save_id` ✗)
+- **`id_projection` added to all compound-named chain functions** — fixes multi-step targeting for handler names where the platform would otherwise infer a non-existent target field:
+  - `upload_attachment` → `id_projection="note_id"` (would infer `attachment_id` ✗)
+  - `delete_attachment` → `id_projection="note_id"` (would infer wrong alias)
+  - `delete_folder_with_contents` → `id_projection="folder_id"` (would infer `folder_with_contents_id` ✗)
+  - `permanent_delete_note` → `id_projection="note_id"` (would infer `delete_note_id` ✗)
+  - `note_save` → `id_projection="note_id"` (would infer `save_id` ✗)
 
 ---
 
@@ -230,7 +229,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
-- **Removed kernel PROJECTIONS bypass** — `app.py` was importing `the platform runtime.orchestration.target_resolver.PROJECTIONS` directly and mutating it from extension code. This violates the Federal Extension Contract (extensions must use SDK primitives only). In chain context, the projection for `create_note` was injecting only `folder_id` from the previous step result, causing "Note must have a title or content" errors when the kernel tried to auto-invoke `create_note` downstream. Projections removed; the underlying kernel heuristic bug (`delete_notes_from_folder` → wrong field name `notes_from_folder_id`) is tracked separately as a kernel-side fix.
+- **Removed platform-internals bypass** — `app.py` was reaching into platform internals from extension code and mutating them. Extensions must use SDK primitives only. In multi-step operations, this caused "Note must have a title or content" errors when `create_note` was auto-invoked downstream with only `folder_id` carried over. The bypass was removed; the related platform-side targeting issue for `delete_notes_from_folder` is tracked separately as a platform fix.
 - **`create_note` empty params** — system prompt now explicitly instructs the LLM to ask the user for title or content (in the conversation language) instead of calling `create_note` with empty params when no details are provided.
 
 ---
@@ -240,7 +239,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Fixed
 
 - **Folder operations by name** — `delete_notes_from_folder` and `delete_folder_with_contents` now accept a folder name OR UUID in `folder_id`. `_resolve_folder_id_or_name` in `app.py` detects non-UUID input and auto-resolves via `GET /folders` (exact → prefix → contains match). No separate `resolve_folder` call required from the LLM.
-- **Kernel `PROJECTIONS` registration** — the kernel's `the platform` heuristic incorrectly derives `notes_from_folder_id` from `delete_notes_from_folder` (strips `delete_` prefix, appends `_id`). Registered explicit projections for `delete_notes_from_folder`, `delete_folder_with_contents`, `create_note`, and `list_notes` so the `action_executor` the platform path correctly maps `folder_id` from the resolved folder item instead of throwing an INTERNAL exception.
+- **Explicit multi-step target mapping** — the platform would otherwise infer the wrong target field (`notes_from_folder_id`) for `delete_notes_from_folder`. Registered explicit target mappings for `delete_notes_from_folder`, `delete_folder_with_contents`, `create_note`, and `list_notes` so the platform correctly maps `folder_id` from the resolved folder item instead of throwing an internal error.
 - **`folder_id` field description** — updated in both `DeleteNotesFromFolderParams` and `DeleteFolderWithContentsParams` to explicitly state "UUID or folder name — auto-resolved". Prevents LLM from treating the field as UUID-only and passing empty value.
 - **`_UUID_RE` moved to `app.py`** — shared regex for UUID detection, used by `_resolve_folder_id_or_name`.
 
@@ -275,7 +274,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - **`delete_notes_from_folder`** — bulk-delete all notes in a folder via `DELETE /notes/bulk`. `permanent=false` moves to trash; `permanent=true` hard-deletes. Replaces the previous loop pattern.
 - **`delete_folder_with_contents`** — two-step atomic operation: (1) `DELETE /notes/bulk` for all notes in folder, (2) `DELETE /folders/{id}`. Needed because backend `DELETE /folders/{id}` only orphans notes (sets `folder_id=NULL`), it does not cascade-delete them.
-- **`DELETE /notes/bulk` backend endpoint** — added to `the backend routes_notes.py`; accepts `user_id`, `folder_id`, `permanent` query params. Removes or trashes all non-trashed notes in the folder in a single DB operation.
+- **`DELETE /notes/bulk` backend endpoint** — added to the backend; accepts `user_id`, `folder_id`, `permanent` query params. Removes or trashes all non-trashed notes in the folder in a single DB operation.
 - **`system_prompt.txt` routing** — rules 13a (`delete_folder_with_contents`), 13b (`delete_notes_from_folder`), 13c (`resolve_folder`) added. Rule 13 clarified: `delete_folder` keeps notes (moves to root), does not cascade.
 
 ---
@@ -283,14 +282,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [3.0.0] — 2026-05-01
 
 ### Breaking
-- Requires `imperal-sdk==4.0.1` (federal contract v4.0.0)
+- Requires `imperal-sdk==4.0.1` (SDK contract v4.0.0)
 
 ### Changed
 - **SDK 4.0.1 migration** — `Extension()` now declares `display_name`, `description`, `icon`, `actions_explicit=True` (V14/V15/V21 compliance)
 - **ctx.http** — replaced module-level `HTTPClient` singleton with per-request `ctx.http`; eliminates shared state between concurrent user requests
 - **NotesAPIError** — replaced `httpx.HTTPStatusError` synthesis with a clean `NotesAPIError(status_code, detail, path)`; removed httpx dependency from extension code
-- **chain_callable=True + effects=[]** on all write/destructive handlers (federal typed-dispatch contract; kernel chain planner now dispatches directly without LLM router)
-- **@ext.emits declarations** — 10 event types registered for UEB manifest §M7
+- **chain_callable=True + effects=[]** on all write/destructive handlers (typed-dispatch contract; the platform now dispatches these directly)
+- **@ext.emits declarations** — 10 event types registered in the manifest
 - **ctx.cache** — folders list (TTL=60s) and folder stats (TTL=30s) cached in sidebar; folders (60s) and tags (120s) cached in editor; reduces API calls per panel render
 - **Manifest schema v3** — `imperal.json` regenerated with per-tool `action_type`, `chain_callable`, `effects`, `owner_chat_tool`
 - **skeleton.py** — removed `**kwargs` from `skeleton_refresh_notes`; fixed trash count query (`is_trashed=True`, was incorrectly using `is_archived=True`)
@@ -373,7 +372,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 
 - **Tags editing** — `ui.TagInput` in the editor panel replaces the read-only `KeyValue("Tags: #a #b")` display. Tags are now editable inline with autocomplete suggestions sourced from all tags the user has used across their notes. Changes auto-save via `note_save(field="tags")`.
-- **`GET /notes/tags` backend endpoint** — new `the backend` route returns all unique tags for a user across active (non-archived) notes; used by the editor for tag suggestions.
+- **`GET /notes/tags` backend endpoint** — new backend route returns all unique tags for a user across active (non-archived) notes; used by the editor for tag suggestions.
 - **`fn_note_save` field="tags"** — new save path in `handlers_panel_actions.py`; PATCHes `/notes/{id}` with the updated tag list and refreshes the sidebar.
 
 ---
@@ -382,8 +381,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
-- **`handlers_folders.py`** — `fn_rename_folder` was sending `name` in the JSON body (2.5.2 regression). `the backend PATCH /folders/{id}` reads `name` as a Query parameter, not from the request body — so the body-driven path saw nothing to change and silently no-op'd. Moved `name` back to the query string; body is now empty `{}` as the API expects.
-- **`requirements.txt`** — SDK pin bumped `==3.4.1` → `==3.5.0` to match the actual worker venv (`the runtime/venv`). Discrepancy was a deployment drift risk.
+- **`handlers_folders.py`** — `fn_rename_folder` was sending `name` in the JSON body (2.5.2 regression). The backend `PATCH /folders/{id}` reads `name` as a Query parameter, not from the request body — so the body-driven path saw nothing to change and silently no-op'd. Moved `name` back to the query string; body is now empty `{}` as the API expects.
+- **`requirements.txt`** — SDK pin bumped `==3.4.1` → `==3.5.0` to match the actual deployed runtime. Discrepancy was a deployment drift risk.
 
 ---
 
@@ -391,7 +390,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
-- **`requirements.txt`** — bump `imperal-sdk==3.0.0` → `==3.4.1`. Pulls in the LLM-FU-1/FU-2 stack (gpt-5 / o-series `max_completion_tokens` rename + `temperature` drop) so chains routed through reasoning models stop falling over to `anthropic/haiku`. No source changes — extension code already complies with the 3.x surface (3.3.0 `ChatExtension(model=)` removal done in 2.5.2; 3.4.0 panel-slot whitelist already met by `panels.py` `slot="left"` + `panels_editor.py` `slot="center"`).
+- **`requirements.txt`** — bump `imperal-sdk==3.0.0` → `==3.4.1`. Pulls in reasoning-model parameter handling (`max_completion_tokens` rename + `temperature` drop) so multi-step operations routed through reasoning models behave correctly. No source changes — extension code already complies with the 3.x surface (3.3.0 `ChatExtension(model=)` removal done in 2.5.2; 3.4.0 panel-slot whitelist already met by `panels.py` `slot="left"` + `panels_editor.py` `slot="center"`).
 
 ---
 
@@ -407,7 +406,7 @@ Architecture audit pass: rename_folder fix + LLM-input hardening on the panel-ac
 
 - **`handlers_panel_actions.py`** — `NoteSaveParams` now declares `validation_alias=AliasChoices(...)` on `note_id` / `field` / `title` / `content_text`, plus `model_config = ConfigDict(populate_by_name=True)`. Although the handler is invoked by the DUI editor's `ui.Call("note_save", ...)`, it is registered as `@chat.function` and therefore exposed to LLM tool surface; the previous shape would raise `VALIDATION_MISSING_FIELD` into chat on `noteId`/`action`/`body` calls.
 - **`models_notes.py`** — `tags` field on `ListNotesParams`, `CreateNoteParams`, and `UpdateNoteParams` accepts a comma-separated string from the LLM in addition to a list (`"work,personal"` → `["work","personal"]`). LLMs occasionally serialize lists as strings; without coercion Pydantic raised `list_type` straight into chat.
-- **`app.py`** — `ChatExtension(model="claude-haiku-4-5-20251001")` removed (deprecated since SDK 3.3.0). LLM model resolution now flows through kernel ctx-injection (`ctx._llm_configs`); the parameter will hard-error in SDK 4.0.
+- **`app.py`** — the hardcoded `ChatExtension(model=...)` was removed (deprecated since SDK 3.3.0). Model resolution now flows through the platform; the parameter will hard-error in SDK 4.0.
 - **`app.py`** — health-check `except: pass`-style fallback now `log.warning(exc)` so probe failures show in the worker log, per the Dimasickky enterprise quality bar.
 - **`main.py`** — module docstring no longer carries a stale `v2.4.0` version; entrypoint stays version-free, source of truth is `Extension(version=…)`.
 
@@ -424,7 +423,7 @@ User-visible strings flipped to English to match the workspace English-only UI p
 
 ### Why
 
-The Dimasickky enterprise quality bar was updated 2026-04-27: all user-visible static strings (`ActionResult.error/success` messages, `ui.Empty.message`, `ui.Input` placeholders, `ui.Button` labels, panel headers, footer status, validation errors) live in English. Webbee LLM localizes chat replies to the user's language automatically; static UI does not get ad-hoc translations. The previous "по-русски" directive predated international/federal-grade product positioning and is now retired.
+The Dimasickky enterprise quality bar was updated 2026-04-27: all user-visible static strings (`ActionResult.error/success` messages, `ui.Empty.message`, `ui.Input` placeholders, `ui.Button` labels, panel headers, footer status, validation errors) live in English. Webbee LLM localizes chat replies to the user's language automatically; static UI does not get ad-hoc translations. The previous "по-русски" directive predated international product positioning and is now retired.
 
 ### Changed
 
@@ -434,7 +433,7 @@ The Dimasickky enterprise quality bar was updated 2026-04-27: all user-visible s
 
 ### Not changed
 
-- Backend (the backend), wire contract, SDK pin (`imperal-sdk==3.0.0`), `system_prompt.txt` (Russian phrases there are LLM negative-training corpus, intentional). Handler logic, routing, validation rules — all byte-equivalent to 2.5.0.
+- Backend, wire contract, SDK pin (`imperal-sdk==3.0.0`), `system_prompt.txt` (Russian phrases there are LLM negative-training corpus, intentional). Handler logic, routing, validation rules — all byte-equivalent to 2.5.0.
 
 ---
 
@@ -444,7 +443,7 @@ SDK migration: `imperal-sdk==2.0.1` → `imperal-sdk==3.0.0` (Identity Contract 
 
 ### Why
 
-SDK 3.0.0 (released 2026-04-27 by the team) deletes `imperal_sdk.auth.user.User`, makes `User`/`UserContext` frozen Pydantic v2 models with `extra="forbid"`, and renames `.id` → `.imperal_id` on user objects. There is no alias — `ctx.user.id` raises `AttributeError` on 3.x. Production worker venv was upgraded to 3.0.0 (shared across all extensions on the backend host), so any 2.x-pinned extension breaks on every panel/skeleton/handler call that reads identity. Migration is mechanical but mandatory.
+SDK 3.0.0 (released 2026-04-27) deletes `imperal_sdk.auth.user.User`, makes `User`/`UserContext` frozen Pydantic v2 models with `extra="forbid"`, and renames `.id` → `.imperal_id` on user objects. There is no alias — `ctx.user.id` raises `AttributeError` on 3.x. The shared production runtime was upgraded to 3.0.0, so any 2.x-pinned extension breaks on every panel/skeleton/handler call that reads identity. Migration is mechanical but mandatory.
 
 ### Changed
 
@@ -465,10 +464,10 @@ Sidebar counters больше не упираются в 200. Раньше у ю
 
 - **`panels.py`** — sidebar теперь читает per-folder counts из нового backend endpoint `GET /folders/stats`, который выдаёт DB-точный `GROUP BY folder_id` за один запрос. Counts для All Notes / Unfiled / каждой папки берутся из этих stats; in-memory bucketing остаётся только как graceful fallback на случай старого backend (capped, как было).
 
-### Backend (the backend)
+### Backend
 
 - Новый endpoint `GET /folders/stats?user_id=&tenant_id=` (frozen wire contract, чисто аддитивный путь — старые ответы не меняются). Возвращает `{"counts": {"<folder_id>": N, "__unfiled__": M, "__all__": T, "__archived__": K}}`. Один SQL с `SUM(CASE WHEN is_archived=…)` агрегацией.
-- **Bonus fix** — `POST /notes` и `POST /folders` больше не делают `SELECT *` после `INSERT`. Старый паттерн под нагрузкой давал flaky 500 (`fetchone() → None` → `AttributeError`) на ~1 из 11 параллельных insert'ов; вероятно ProxySQL routing INSERT→master / SELECT→replica с лагом. Response теперь собирается из known data + явных `created_at/updated_at` timestamp'ов.
+- **Bonus fix** — `POST /notes` и `POST /folders` больше не делают `SELECT *` после `INSERT`. Старый паттерн под нагрузкой давал flaky 500 (`fetchone() → None` → `AttributeError`) на ~1 из 11 параллельных insert'ов; вероятно из-за репликационного лага при routing INSERT→primary / SELECT→replica. Response теперь собирается из known data + явных `created_at/updated_at` timestamp'ов.
 
 ### Not changed
 
@@ -483,12 +482,12 @@ Pin bump only: `imperal-sdk==1.6.2` → `imperal-sdk==2.0.1`. No source changes.
 
 ### Why
 
-`imperal-sdk` 2.0.1 (released 2026-04-25 by the team) supersedes the rolled-back 2.0.0 by restoring the v1.6.2 contract and shipping two ICNLI Action Authority hotfixes inside the kernel:
+`imperal-sdk` 2.0.1 (released 2026-04-25) supersedes the rolled-back 2.0.0 by restoring the v1.6.2 contract and shipping two platform-internal hotfixes:
 
-- `chat/guards.py` — destructive actions return `ESCALATE` instead of `BLOCK`, mirroring the existing write-action behaviour and deferring to the federal `confirmation_gate` (`I-CHATEXT-DESTRUCTIVE-ESCALATE`).
-- `core/intent.action_plan.args` — JSON-encoded string for OpenAI strict-mode compatibility (`I-ACTION-PLAN-ARGS-JSON-STRING`).
+- Destructive actions now defer to the platform's confirmation step instead of being blocked outright, mirroring the existing write-action behaviour.
+- Action arguments are JSON-encoded for strict-mode model compatibility.
 
-Both hotfixes are kernel-internal; the SDK API surface exposed to extensions is identical to 1.6.2. Per the team's release note: *"v1.6.2 extensions upgrade by pin bump only."*
+Both hotfixes are platform-internal; the SDK API surface exposed to extensions is identical to 1.6.2. Per the release note: *"v1.6.2 extensions upgrade by pin bump only."*
 
 ### Changed
 
@@ -529,17 +528,17 @@ Yesterday a user saw `1 validation error for CreateNoteParams content_text Field
 
 ## [2.4.4] — 2026-04-26
 
-Hotfix on top of 2.4.3 — sidebar showed `0` because the bumped fetch limit hit a the backend server-side cap.
+Hotfix on top of 2.4.3 — sidebar showed `0` because the bumped fetch limit hit a backend server-side cap.
 
 ### Fixed
 
-- **`panels.py` active-notes fetch limit reverted from `1000` to `200`.** the backend enforces `limit ≤ 200` at the FastAPI query-validator level and returns HTTP 422 for anything higher; `_api_get` raised, the surrounding `try/except` caught it and fell through to the empty-list branch, so `total_count` ended up `0` and the sidebar displayed `0` for every user.
+- **`panels.py` active-notes fetch limit reverted from `1000` to `200`.** The backend enforces `limit ≤ 200` at the query-validator level and returns HTTP 422 for anything higher; `_api_get` raised, the surrounding `try/except` caught it and fell through to the empty-list branch, so `total_count` ended up `0` and the sidebar displayed `0` for every user.
 - **The global "All Notes" counter still reads `total_count` from the response** (the 2.4.3 intent), and that number is correct at any fetch limit — including 200 — because the API computes it server-side from the database, not from the returned page. So users past 200 notes still see the honest total.
-- **Per-folder counters** stay computed from the fetched 200-item array; no folder in current production exceeds 200 notes, so the bucketing remains correct. If that changes, lifting the cap belongs in the backend, not the panel.
+- **Per-folder counters** stay computed from the fetched 200-item array, which keeps the bucketing correct for typical folder sizes. If a folder ever exceeds that, lifting the cap belongs in the backend, not the panel.
 
 ### Why this slipped past 2.4.3
 
-There is no schema-shape test on `_api_get("/notes", {"limit": ...})` against the live the backend validator; the change was reasoned from a curl test at `limit=1` and a PRD assumption that the cap was 200 at the panel layer, not the API layer. Adding a smoke check against `the backend/app.py` query bounds before bumping limits anywhere is the lesson.
+There is no schema-shape test on `_api_get("/notes", {"limit": ...})` against the live backend validator; the change was reasoned from a curl test at `limit=1` and a PRD assumption that the cap was 200 at the panel layer, not the API layer. Adding a smoke check against the backend's query bounds before bumping limits anywhere is the lesson.
 
 ---
 
@@ -549,7 +548,7 @@ Fix sidebar counters for users past the 200-note threshold. Trash counter likewi
 
 ### Fixed
 
-- **`panels.py` "All Notes" counter** now reads `total_count` from the the backend response instead of `len(all_notes)`. Previously the sidebar fetched `limit=200` and reported the array length as the global total, so any user with more than 200 active notes saw `200` as the counter regardless of their actual count (e.g. 278 → displayed `200`).
+- **`panels.py` "All Notes" counter** now reads `total_count` from the backend response instead of `len(all_notes)`. Previously the sidebar fetched `limit=200` and reported the array length as the global total, so any user with more than 200 active notes saw `200` as the counter regardless of their actual count (e.g. 278 → displayed `200`).
 - **Per-folder and unfiled counters** continue to be computed locally over the fetched array. To keep them accurate for larger libraries, the active-notes fetch limit moved from `200` to `1000`. Users approaching that ceiling will need a second-page fetch eventually — captured as future work, not addressed here.
 - **Trash limit** raised from `50` to `200` for the same reason — archived counts past 50 were silently truncated.
 
@@ -565,7 +564,7 @@ When the assistant said "you have 0 notes" yesterday, the underlying call was `l
 
 ## [2.4.2] — 2026-04-25
 
-Pin `imperal-sdk==1.6.2` after rolling back the v3.0.0 / SDK v2.0 / Webbee Single Voice rebuild. Code unchanged from 2.4.1; only the SDK constraint moves from `>=1.5.26,<1.6` to the exact runtime version in production. The v2.0 work is preserved on the `sdk-v2-migration` branch (and tagged `pre-1.6.2-rebuild-2026-04-25` on main pre-reset) for incremental re-roll once the kernel `direct_call.py` path stabilises.
+Pin `imperal-sdk==1.6.2` after rolling back the v3.0.0 / SDK v2.0 rebuild. Code unchanged from 2.4.1; only the SDK constraint moves from `>=1.5.26,<1.6` to the exact runtime version in production. The v2.0 work is preserved on the `sdk-v2-migration` branch (and tagged `pre-1.6.2-rebuild-2026-04-25` on main pre-reset) for incremental re-roll once the platform's direct-dispatch path stabilises.
 
 ### Changed
 
@@ -575,15 +574,15 @@ Pin `imperal-sdk==1.6.2` after rolling back the v3.0.0 / SDK v2.0 / Webbee Singl
 
 ## [2.4.1] — 2026-04-23
 
-Fundamental hygiene pass after deep audit of a broken Webbee session where the LLM silently no-op'd on "delete notes tagged X", claimed to have "searched all 187 notes" after a 10-row window, and produced a 92→0 count drift across chain steps. No behaviour changes for the LLM, but the extension now closes the feature gaps and observability holes that let those bugs hide. Mirror-patch of the sql-db 1.3.0 refactor.
+Fundamental hygiene pass after a deep audit of a broken AI session where the assistant silently no-op'd on "delete notes tagged X", claimed to have "searched all N notes" after seeing only a 10-row window, and produced an inconsistent note count across multi-step operations. No behaviour changes for the assistant, but the extension now closes the feature gaps and observability holes that let those bugs hide. Mirror-patch of the sql-db 1.3.0 refactor.
 
 ### Added
 
-- **`resolve_folder(name)`** — case-insensitive single-call folder lookup. Returns `folder_id` + `match_quality` (`exact` / `prefix` / `contains` / `none`) plus candidates on miss. Replaces the `list_folders` + re-match-by-name chain pattern, which was flaking under kernel `ctx` propagation drift.
-- **`list_notes(tags=[...])` filter** — AND-match tag filter on list. Passed to backend as `?tags=a,b`; extension-side fallback filter applied so the contract is stable even if the backend ignores the param (older the backend versions).
+- **`resolve_folder(name)`** — case-insensitive single-call folder lookup. Returns `folder_id` + `match_quality` (`exact` / `prefix` / `contains` / `none`) plus candidates on miss. Replaces the `list_folders` + re-match-by-name chain pattern, which was flaking in multi-step operations.
+- **`list_notes(tags=[...])` filter** — AND-match tag filter on list. Passed to backend as `?tags=a,b`; extension-side fallback filter applied so the contract is stable even if the backend ignores the param (older backend versions).
 - **`search_notes(limit, offset)`** — real pagination. Returns `has_more` / `next_offset` / `total_count` / `page_size` mirroring `list_notes`. Previously hardcoded `limit=10` with no pagination surface → LLM would claim "searched all N" after seeing a 10-row window.
 - **`is_archived` on list/search/get results** — lets the LLM distinguish trashed notes from live without a round-trip to trash listing.
-- **`require_user_id(ctx)` helper** — raises when `ctx` has no user attached. Used by every `@chat.function` handler so a kernel-side chain step that drops `ctx.user` surfaces a loud error instead of silently scoping every backend query to no-user (indistinguishable from a real empty folder — directly produced the 92→0 count drift in prod).
+- **`require_user_id(ctx)` helper** — raises when `ctx` has no user attached. Used by every `@chat.function` handler so a multi-step operation that drops the user identity surfaces a loud error instead of silently scoping every backend query to no-user (indistinguishable from a real empty folder — this directly produced the inconsistent note count).
 - **Title-bleed guard in `create_note`** — if `title` is a ≥3-char prefix of `content_text`, the duplicate is stripped from content start with a `log.warning`. Defends against automation/template bugs where an interpolated title ends up concatenated into the body.
 
 ### Changed
@@ -597,26 +596,26 @@ Fundamental hygiene pass after deep audit of a broken Webbee session where the L
 - **`Extension(...)` capabilities** — now declares `capabilities=["notes:read", "notes:write"]` explicitly at construction time.
 - **Pydantic models extracted** — all `BaseModel` params pulled out of `handlers_notes.py` into new `models_notes.py`. Keeps `handlers_notes.py` focused on `@chat.function` logic and safely under the 300-line cap (283 lines post-refactor).
 - **`system_prompt.txt` hardening:**
-  - Anti-refusal denylist extended with `"недоступна в контексте"`, `"в контексте выполнения"`, `"в контексте цепочки"`, `"chain context"`, `"execution context"`, `"функция не найдена"` — covers the hallucination pattern observed when the kernel returned misrouted tool errors.
+  - Anti-refusal denylist extended with `"недоступна в контексте"`, `"в контексте выполнения"`, `"в контексте цепочки"`, `"chain context"`, `"execution context"`, `"функция не найдена"` — covers the hallucination pattern observed when the platform returned misrouted tool errors. (These Russian phrases are LLM negative-training corpus, intentional.)
   - NEW `PAGINATION HONESTY` block forbidding "searched all notes" claims unless `has_more=false` AND `total_count` is populated. Instructs the LLM to paginate via `next_offset` for exhaustive requests.
   - Routing updated to prefer `resolve_folder` over `list_folders`+match for single-folder lookups.
 - **SDK pin** — `imperal-sdk>=1.5.26,<1.6` (from `v1.5.24` git URL). Absorbs narration guardrail, `@ext.skeleton` polish, structural contradiction guard, `check_write_arg_bleed`.
 
 ### Known limitations / deferred
 
-- **Server-side bulk delete** — `delete_notes_by_filter(tags, folder_id, title_prefix)` deferred pending a the backend `/notes/bulk-delete` endpoint. For now the LLM must loop `list_notes(tags=[...]) + delete_note(note_id)`; the `system_prompt.txt` CAPABILITY HONESTY block instructs it to do exactly that instead of silently claiming success.
-- **Backend `total_count` on list/search** — `list_notes` / `search_notes` pagination prefers a DB-wide `total_count` from the backend when provided; falls back to a full-page heuristic otherwise. Pending the backend patch to surface the true count.
+- **Server-side bulk delete** — `delete_notes_by_filter(tags, folder_id, title_prefix)` deferred pending a backend `/notes/bulk-delete` endpoint. For now the LLM must loop `list_notes(tags=[...]) + delete_note(note_id)`; the `system_prompt.txt` CAPABILITY HONESTY block instructs it to do exactly that instead of silently claiming success.
+- **Backend `total_count` on list/search** — `list_notes` / `search_notes` pagination prefers a DB-wide `total_count` from the backend when provided; falls back to a full-page heuristic otherwise. Pending a backend patch to surface the true count.
 - **`ActionResult.error(error_code=...)` not yet adopted.** SDK 1.5.26's signature is `(error: str, retryable: bool = False)`. Same limitation as sql-db 1.3.0. Deferred pending SDK API expansion.
 
 ### Why this release matters
 
-The Webbee session of 2026-04-23 produced three visible failure modes: (a) "delete notes tagged автоматизация" ended with `"Пожалуйста!"` and nothing happened; (b) `search_notes("Текущее время")` said "3 exact matches" then "0 exact matches" on the very next turn; (c) `list_notes(folder="отчёты")` said 92 → 90 → 0 across chain steps. This release closes every extension-side contribution:
+The AI session of 2026-04-23 produced three visible failure modes: (a) "delete notes tagged X" ended with a polite acknowledgement and nothing happened; (b) a search said "3 exact matches" then "0 exact matches" on the very next turn; (c) a folder listing reported a shrinking-then-zero count across multi-step operations. This release closes every extension-side contribution:
 
-- **(a)** feature gap — no `tags` filter, no bulk op — now has the filter, the prompt tells the LLM to loop, and the extension will no longer pretend to succeed.
+- **(a)** feature gap — no `tags` filter, no bulk op — now has the filter, the prompt tells the assistant to loop, and the extension will no longer pretend to succeed.
 - **(b)** search hidden-cap — now has `has_more`/`total_count`, the prompt forbids false coverage claims.
-- **(c)** silent `user_id=""` scoping — now raises loudly via `require_user_id`, so a kernel `ctx` drop becomes a visible `ActionResult.error` instead of an empty list.
+- **(c)** silent empty-user scoping — now raises loudly via `require_user_id`, so a dropped user identity becomes a visible `ActionResult.error` instead of an empty list.
 
-Kernel-side bugs (chain-path `ctx.user` propagation drift, misrouted tool errors producing LLM-synthesised Russian refusals) are tracked separately and not in scope for this release.
+Platform-side bugs (user-identity propagation in multi-step operations, misrouted tool errors producing AI-synthesised refusals) are tracked separately and not in scope for this release.
 
 ---
 
