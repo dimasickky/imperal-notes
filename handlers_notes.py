@@ -54,6 +54,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
         if params.search:                  qp["search"] = params.search
         if params.tags:                    qp["tags"] = ",".join(params.tags)
         if params.is_archived is not None: qp["is_archived"] = params.is_archived
+        if params.is_trashed is not None:  qp["is_trashed"] = params.is_trashed
 
         resp = await _api_get(ctx, "/notes", qp)
         notes = resp.get("notes", [])
@@ -78,8 +79,11 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
                         tags=n.get("tags") or [],
                         is_pinned=n.get("is_pinned", False),
                         is_archived=n.get("is_archived", False),
+                        is_trashed=n.get("is_trashed", False),
                         word_count=n.get("word_count", 0),
                         folder_id=n.get("folder_id"),
+                        created_at=str(n.get("created_at") or ""),
+                        updated_at=str(n.get("updated_at") or ""),
                     ).model_dump()
                     for n in notes
                 ],
@@ -123,8 +127,11 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
             tags=note.get("tags") or [],
             is_pinned=note.get("is_pinned", False),
             is_archived=note.get("is_archived", False),
+            is_trashed=note.get("is_trashed", False),
             word_count=note.get("word_count", 0),
             folder_id=note.get("folder_id"),
+            created_at=str(note.get("created_at") or ""),
+            updated_at=str(note.get("updated_at") or ""),
         )
         return ActionResult.success(
             data=entity,
@@ -445,8 +452,14 @@ async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) 
 
 # ── Bulk actions over an explicit note-id set ─────────────────────────────── #
 
-async def _resolve_bulk_ids(ctx, note_ids, note_titles) -> tuple[list, list]:
-    """Resolve note_ids + note_titles → (resolved_ids, not_found_titles). De-duped."""
+async def _resolve_bulk_ids(ctx, note_ids, note_titles, scope_filter: dict) -> tuple[list, list]:
+    """Resolve note_ids + note_titles → (resolved_ids, not_found_titles). De-duped.
+
+    Titles are matched against notes in the given scope (active / archived /
+    trashed) via the list endpoint — NOT fulltext search, which by design never
+    returns archived or trashed rows (so restore/unarchive by title would
+    otherwise always miss the very notes they target).
+    """
     ids: list = []
     seen: set = set()
     for nid in (note_ids or []):
@@ -455,31 +468,35 @@ async def _resolve_bulk_ids(ctx, note_ids, note_titles) -> tuple[list, list]:
             seen.add(nid)
             ids.append(nid)
     not_found: list = []
-    for title in (note_titles or []):
-        title = (title or "").strip()
-        if not title:
-            continue
-        resp = await _api_get(ctx, "/notes/search/fulltext", {
-            "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
-            "q": title, "limit": 10, "offset": 0,
-        })
-        results = resp.get("results", []) if isinstance(resp, dict) else []
-        tl = title.lower()
-        match = next(
-            (r for r in results if (r.get("title") or "").strip().lower() == tl),
-            next((r for r in results if tl in (r.get("title") or "").strip().lower()), None),
-        )
-        if match and match.get("id"):
-            if match["id"] not in seen:
+    titles = [t.strip() for t in (note_titles or []) if (t or "").strip()]
+    if titles:
+        qp = {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
+              "limit": MAX_NOTES_PER_PAGE, "offset": 0}
+        qp.update(scope_filter)
+        resp = await _api_get(ctx, "/notes", qp)
+        pool = resp.get("notes", []) if isinstance(resp, dict) else []
+        for title in titles:
+            tl = title.lower()
+            match = next(
+                (n for n in pool if (n.get("title") or "").strip().lower() == tl),
+                next((n for n in pool if tl in (n.get("title") or "").strip().lower()), None),
+            )
+            if match and match.get("id") and match["id"] not in seen:
                 seen.add(match["id"])
                 ids.append(match["id"])
-        else:
-            not_found.append(title)
+            elif not match:
+                not_found.append(title)
     return ids, not_found
 
 
-async def _bulk_action(ctx, params, *, action: str, ok_verb: str) -> ActionResult:
-    ids, not_found = await _resolve_bulk_ids(ctx, params.note_ids, params.note_titles)
+# Title-resolution scopes per action (list-endpoint filters).
+_SCOPE_ACTIVE   = {"is_archived": False, "is_trashed": False}
+_SCOPE_ARCHIVED = {"is_archived": True}
+_SCOPE_TRASHED  = {"is_trashed": True}
+
+
+async def _bulk_action(ctx, params, *, action: str, ok_verb: str, scope_filter: dict) -> ActionResult:
+    ids, not_found = await _resolve_bulk_ids(ctx, params.note_ids, params.note_titles, scope_filter)
     if not ids:
         if not_found:
             return ActionResult.error(f"No matching notes found for: {', '.join(not_found)}.")
@@ -522,6 +539,7 @@ async def fn_delete_notes(ctx, params: DeleteNotesParams) -> ActionResult:
             ctx, params,
             action="permanent" if params.permanent else "trash",
             ok_verb="permanently deleted" if params.permanent else "moved to trash",
+            scope_filter=_SCOPE_ACTIVE,
         )
     except NotesAPIError as e:
         return ActionResult.error(f"delete_notes backend returned {e.status_code}: {e.detail}")
@@ -541,7 +559,8 @@ async def fn_delete_notes(ctx, params: DeleteNotesParams) -> ActionResult:
 )
 async def fn_archive_notes(ctx, params: BulkNotesParams) -> ActionResult:
     try:
-        return await _bulk_action(ctx, params, action="archive", ok_verb="archived")
+        return await _bulk_action(ctx, params, action="archive", ok_verb="archived",
+                                  scope_filter=_SCOPE_ACTIVE)
     except NotesAPIError as e:
         return ActionResult.error(f"archive_notes backend returned {e.status_code}: {e.detail}")
     except Exception as e:
@@ -560,7 +579,8 @@ async def fn_archive_notes(ctx, params: BulkNotesParams) -> ActionResult:
 )
 async def fn_unarchive_notes(ctx, params: BulkNotesParams) -> ActionResult:
     try:
-        return await _bulk_action(ctx, params, action="unarchive", ok_verb="unarchived")
+        return await _bulk_action(ctx, params, action="unarchive", ok_verb="unarchived",
+                                  scope_filter=_SCOPE_ARCHIVED)
     except NotesAPIError as e:
         return ActionResult.error(f"unarchive_notes backend returned {e.status_code}: {e.detail}")
     except Exception as e:
@@ -579,7 +599,8 @@ async def fn_unarchive_notes(ctx, params: BulkNotesParams) -> ActionResult:
 )
 async def fn_restore_notes(ctx, params: BulkNotesParams) -> ActionResult:
     try:
-        return await _bulk_action(ctx, params, action="restore", ok_verb="restored")
+        return await _bulk_action(ctx, params, action="restore", ok_verb="restored",
+                                  scope_filter=_SCOPE_TRASHED)
     except NotesAPIError as e:
         return ActionResult.error(f"restore_notes backend returned {e.status_code}: {e.detail}")
     except Exception as e:
@@ -608,6 +629,8 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
             "q":         params.query,
             "limit":     params.limit,
             "offset":    params.offset,
+            "include_archived": params.include_archived,
+            "include_trashed":  params.include_trashed,
         })
         results = resp.get("results", [])
 

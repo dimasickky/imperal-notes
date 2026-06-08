@@ -74,6 +74,15 @@ class ListNotesParams(BaseModel):
         ),
         validation_alias=AliasChoices("is_archived", "archived"),
     )
+    is_trashed: bool | None = Field(
+        default=None,
+        description=(
+            "Filter by trash status. None (default) = not-trashed only. "
+            "True = trashed notes only (the trash bin). "
+            "Use this to count/list notes in trash."
+        ),
+        validation_alias=AliasChoices("is_trashed", "trashed", "in_trash"),
+    )
 
     _coerce_tags = field_validator("tags", mode="before")(_coerce_tags)
 
@@ -210,6 +219,16 @@ class SearchNotesParams(BaseModel):
     offset: int = Field(
         default=0, ge=0, description="Pagination offset",
         validation_alias=AliasChoices("offset", "skip"),
+    )
+    include_archived: bool = Field(
+        default=False,
+        description="Also search archived notes (default search skips them).",
+        validation_alias=AliasChoices("include_archived", "with_archived"),
+    )
+    include_trashed: bool = Field(
+        default=False,
+        description="Also search notes in trash (default search skips them).",
+        validation_alias=AliasChoices("include_trashed", "with_trashed"),
     )
 
 

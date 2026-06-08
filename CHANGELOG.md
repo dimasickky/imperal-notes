@@ -6,6 +6,32 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.15.0] — 2026-06-08
+
+### Added
+
+- Notes now carry **created** and **last-edited** timestamps in get/list results
+  (the editor already displayed them), so you can ask for "my oldest note" or
+  "what I edited most recently".
+- **Search can reach archived/trashed notes** on request: `search_notes` accepts
+  `include_archived` / `include_trashed`, and `list_notes` can filter to trash
+  (`is_trashed`).
+
+### Fixed
+
+- **Bulk restore / unarchive by note title** now work — they look inside trash /
+  archive respectively, instead of the default search (which never returns
+  archived or trashed notes, so title lookup always missed them).
+
+### Changed
+
+- Search and the note count are active-only by default. The assistant now checks
+  the archive and trash before saying a note doesn't exist, and reports
+  active / archived / trash separately rather than passing off the active count
+  as the grand total.
+
+---
+
 ## [3.14.0] — 2026-06-08
 
 ### Added

@@ -1,4 +1,4 @@
-"""Notes · entrypoint (v3.14.0 — bulk delete/archive/restore + GUI multi-select)."""
+"""Notes · entrypoint (v3.15.0 — created/updated fields, scope-aware bulk title resolve, search include flags)."""
 from __future__ import annotations
 
 import sys, os

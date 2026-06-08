@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "5.2.0",
   "app_id": "notes",
-  "version": "3.14.0",
+  "version": "3.15.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -76,6 +76,19 @@
             "default": null,
             "description": "Filter by archive status. None (default) = active notes only. True = archived notes only. False = explicitly active only.",
             "title": "Is Archived"
+          },
+          "is_trashed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter by trash status. None (default) = not-trashed only. True = trashed notes only (the trash bin). Use this to count/list notes in trash.",
+            "title": "Is Trashed"
           }
         },
         "title": "ListNotesParams",
@@ -244,6 +257,11 @@
                 "title": "Is Archived",
                 "type": "boolean"
               },
+              "is_trashed": {
+                "default": false,
+                "title": "Is Trashed",
+                "type": "boolean"
+              },
               "word_count": {
                 "default": 0,
                 "title": "Word Count",
@@ -260,6 +278,16 @@
                 ],
                 "default": null,
                 "title": "Folder Id"
+              },
+              "created_at": {
+                "default": "",
+                "title": "Created At",
+                "type": "string"
+              },
+              "updated_at": {
+                "default": "",
+                "title": "Updated At",
+                "type": "string"
               }
             },
             "required": [
@@ -676,6 +704,11 @@
             "title": "Is Archived",
             "type": "boolean"
           },
+          "is_trashed": {
+            "default": false,
+            "title": "Is Trashed",
+            "type": "boolean"
+          },
           "word_count": {
             "default": 0,
             "title": "Word Count",
@@ -692,6 +725,16 @@
             ],
             "default": null,
             "title": "Folder Id"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "updated_at": {
+            "default": "",
+            "title": "Updated At",
+            "type": "string"
           }
         },
         "required": [
@@ -1184,6 +1227,11 @@
             "title": "Is Archived",
             "type": "boolean"
           },
+          "is_trashed": {
+            "default": false,
+            "title": "Is Trashed",
+            "type": "boolean"
+          },
           "word_count": {
             "default": 0,
             "title": "Word Count",
@@ -1200,6 +1248,16 @@
             ],
             "default": null,
             "title": "Folder Id"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "updated_at": {
+            "default": "",
+            "title": "Updated At",
+            "type": "string"
           }
         },
         "required": [
@@ -1854,6 +1912,18 @@
             "minimum": 0,
             "title": "Offset",
             "type": "integer"
+          },
+          "include_archived": {
+            "default": false,
+            "description": "Also search archived notes (default search skips them).",
+            "title": "Include Archived",
+            "type": "boolean"
+          },
+          "include_trashed": {
+            "default": false,
+            "description": "Also search notes in trash (default search skips them).",
+            "title": "Include Trashed",
+            "type": "boolean"
           }
         },
         "title": "SearchNotesParams",

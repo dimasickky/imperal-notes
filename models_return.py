@@ -15,16 +15,22 @@ class NoteEntity(sdl.Entity, sdl.Bodied, sdl.Categorized):
     sdl.Categorized provides: tags."""
     is_pinned: bool = False
     is_archived: bool = False
+    is_trashed: bool = False
     word_count: int = 0
     folder_id: Optional[str] = None
+    created_at: str = ""   # ISO 8601 — when the note was created
+    updated_at: str = ""   # ISO 8601 — last edit time
 
 
 class NoteListItem(sdl.Entity, sdl.Categorized):
     """Slim SDL note entity for list results."""
     is_pinned: bool = False
     is_archived: bool = False
+    is_trashed: bool = False
     word_count: int = 0
     folder_id: Optional[str] = None
+    created_at: str = ""
+    updated_at: str = ""
 
 
 class SearchNoteItem(sdl.Entity):
