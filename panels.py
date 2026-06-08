@@ -20,7 +20,8 @@ log = logging.getLogger("notes")
         "on_event:"
         "notes.created,notes.updated,notes.deleted,notes.moved,"
         "notes.restored,notes.permanently_deleted,notes.emptied,"
-        "notes.bulk_deleted,notes.folder_created,notes.folder_renamed,"
+        "notes.bulk_deleted,notes.bulk_archived,notes.bulk_unarchived,"
+        "notes.bulk_restored,notes.folder_created,notes.folder_renamed,"
         "notes.folder_deleted,notes.folder_with_contents_deleted"
     ),
 )
@@ -247,7 +248,18 @@ def _append_notes(children: list, all_notes: list, folder_id: str,
         ))
 
     children.append(ui.Divider(f"Notes ({len(items)})"))
-    children.append(ui.List(items=items, searchable=True, page_size=20))
+    children.append(ui.List(
+        items=items, searchable=True, page_size=20,
+        selectable=True,
+        bulk_actions=[
+            {"label": "Archive",  "icon": "Archive",
+             "action": ui.Call("archive_notes")},
+            {"label": "To Trash", "icon": "Trash2",
+             "action": ui.Call("delete_notes")},
+            {"label": "Delete",   "icon": "XCircle",
+             "action": ui.Call("delete_notes", permanent=True)},
+        ],
+    ))
 
 
 async def _append_archived(children: list, ctx) -> None:
@@ -292,7 +304,18 @@ async def _append_archived(children: list, ctx) -> None:
         for n in archived
     ]
     children.append(ui.Divider(f"Archived ({len(archived)})"))
-    children.append(ui.List(items=items))
+    children.append(ui.List(
+        items=items,
+        selectable=True,
+        bulk_actions=[
+            {"label": "Unarchive", "icon": "ArchiveRestore",
+             "action": ui.Call("unarchive_notes")},
+            {"label": "To Trash",  "icon": "Trash2",
+             "action": ui.Call("delete_notes")},
+            {"label": "Delete",    "icon": "XCircle",
+             "action": ui.Call("delete_notes", permanent=True)},
+        ],
+    ))
 
 
 async def _append_trash(children: list, ctx) -> None:
@@ -335,7 +358,16 @@ async def _append_trash(children: list, ctx) -> None:
         for n in trash
     ]
     children.append(ui.Divider(f"Trash ({len(trash)})"))
-    children.append(ui.List(items=items))
+    children.append(ui.List(
+        items=items,
+        selectable=True,
+        bulk_actions=[
+            {"label": "Restore", "icon": "RotateCcw",
+             "action": ui.Call("restore_notes")},
+            {"label": "Delete",  "icon": "XCircle",
+             "action": ui.Call("delete_notes", permanent=True)},
+        ],
+    ))
     children.append(ui.Button(
         "Empty Trash", icon="Trash2", variant="destructive", size="sm",
         on_click=ui.Call("empty_trash"),

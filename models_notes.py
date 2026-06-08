@@ -12,8 +12,9 @@ Aliases here are *input-only* (`validation_alias`); serialization keeps
 the canonical field name so the wire contract with the backend stays
 stable.
 """
-from typing import Optional
+from typing import List, Optional
 
+from imperal_sdk import sdl
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
@@ -230,5 +231,35 @@ class DeleteNotesFromFolderParams(BaseModel):
             "If true, permanently delete all notes (cannot be undone). "
             "If false (default), move to trash."
         ),
+        validation_alias=AliasChoices("permanent", "hard_delete", "force_delete"),
+    )
+
+
+class BulkNotesParams(BaseModel):
+    """Operate on an explicit set of notes by ID and/or by title.
+
+    Pass note_ids when you already have them, or note_titles to auto-resolve.
+    The GUI multi-select sends the checked note IDs into this same field.
+    """
+    model_config = _MODEL_CONFIG
+
+    note_ids: Optional[List[str]] = sdl.field(
+        role="ref.target_id",
+        default=None,
+        description="List of note IDs to act on. Use when you already have the IDs.",
+        validation_alias=AliasChoices("note_ids", "message_ids", "ids", "note_id"),
+    )
+    note_titles: Optional[List[str]] = Field(
+        default=None,
+        description="List of note titles to find and act on. Auto-resolved to IDs via search.",
+        validation_alias=AliasChoices("note_titles", "titles", "names"),
+    )
+
+
+class DeleteNotesParams(BulkNotesParams):
+    """Bulk delete: trash by default, or permanent."""
+    permanent: bool = Field(
+        default=False,
+        description="If true, permanently delete (cannot be undone). If false (default), move to trash.",
         validation_alias=AliasChoices("permanent", "hard_delete", "force_delete"),
     )

@@ -13,11 +13,13 @@ from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
     AppendNoteParams, CreateNoteParams, DeleteNotesFromFolderParams, ListNotesParams,
     MoveNoteParams, NoteIdParams, SearchNotesParams, UpdateNoteParams,
+    BulkNotesParams, DeleteNotesParams,
 )
 from models_return import (
     ListNotesResult, NoteEntity, NoteListItem, SearchNoteItem,
     CreateNoteResult, UpdateNoteResult,
     MoveNoteResult, DeleteNoteResult, BulkDeleteNotesResult, SearchNotesResult,
+    BulkNotesActionResult,
 )
 
 log = logging.getLogger("notes.handlers")
@@ -438,6 +440,150 @@ async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) 
         )
     except Exception as e:
         log.error("delete_notes_from_folder: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+
+
+# ── Bulk actions over an explicit note-id set ─────────────────────────────── #
+
+async def _resolve_bulk_ids(ctx, note_ids, note_titles) -> tuple[list, list]:
+    """Resolve note_ids + note_titles → (resolved_ids, not_found_titles). De-duped."""
+    ids: list = []
+    seen: set = set()
+    for nid in (note_ids or []):
+        nid = (nid or "").strip()
+        if nid and not _bad_id(nid) and nid not in seen:
+            seen.add(nid)
+            ids.append(nid)
+    not_found: list = []
+    for title in (note_titles or []):
+        title = (title or "").strip()
+        if not title:
+            continue
+        resp = await _api_get(ctx, "/notes/search/fulltext", {
+            "user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
+            "q": title, "limit": 10, "offset": 0,
+        })
+        results = resp.get("results", []) if isinstance(resp, dict) else []
+        tl = title.lower()
+        match = next(
+            (r for r in results if (r.get("title") or "").strip().lower() == tl),
+            next((r for r in results if tl in (r.get("title") or "").strip().lower()), None),
+        )
+        if match and match.get("id"):
+            if match["id"] not in seen:
+                seen.add(match["id"])
+                ids.append(match["id"])
+        else:
+            not_found.append(title)
+    return ids, not_found
+
+
+async def _bulk_action(ctx, params, *, action: str, ok_verb: str) -> ActionResult:
+    ids, not_found = await _resolve_bulk_ids(ctx, params.note_ids, params.note_titles)
+    if not ids:
+        if not_found:
+            return ActionResult.error(f"No matching notes found for: {', '.join(not_found)}.")
+        return ActionResult.error("Pass note_ids or note_titles — nothing to act on.")
+    resp = await _api_post(ctx, "/notes/bulk-action", {
+        "user_id": require_user_id(ctx), "note_ids": ids, "action": action,
+    })
+    affected = resp.get("affected_count", 0) if isinstance(resp, dict) else 0
+    summary = f"{affected} note(s) {ok_verb}"
+    if not_found:
+        summary += f" ({len(not_found)} not found: {', '.join(not_found)})"
+    return ActionResult.success(
+        data={
+            "affected_count": affected,
+            "action": action,
+            "note_ids": (resp.get("note_ids", ids) if isinstance(resp, dict) else ids),
+            "not_found": not_found,
+            "refresh_panels": ["__panel__sidebar"],
+        },
+        summary=summary,
+    )
+
+
+@chat.function(
+    "delete_notes",
+    action_type="destructive",
+    chain_callable=True,
+    effects=["trash:note", "delete:note"],
+    event="bulk_deleted",
+    description=(
+        "Delete MULTIPLE notes at once. Pass note_ids (list of IDs) OR note_titles "
+        "(list of names, auto-resolved). Moves them to trash by default; pass "
+        "permanent=true to delete permanently. Use when the user wants to delete 2+ notes."
+    ),
+    data_model=BulkNotesActionResult,
+)
+async def fn_delete_notes(ctx, params: DeleteNotesParams) -> ActionResult:
+    try:
+        return await _bulk_action(
+            ctx, params,
+            action="permanent" if params.permanent else "trash",
+            ok_verb="permanently deleted" if params.permanent else "moved to trash",
+        )
+    except NotesAPIError as e:
+        return ActionResult.error(f"delete_notes backend returned {e.status_code}: {e.detail}")
+    except Exception as e:
+        log.error("delete_notes: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+
+
+@chat.function(
+    "archive_notes",
+    action_type="write",
+    chain_callable=True,
+    effects=["update:note"],
+    event="bulk_archived",
+    description="Archive MULTIPLE notes at once. Pass note_ids (list) OR note_titles (list of names).",
+    data_model=BulkNotesActionResult,
+)
+async def fn_archive_notes(ctx, params: BulkNotesParams) -> ActionResult:
+    try:
+        return await _bulk_action(ctx, params, action="archive", ok_verb="archived")
+    except NotesAPIError as e:
+        return ActionResult.error(f"archive_notes backend returned {e.status_code}: {e.detail}")
+    except Exception as e:
+        log.error("archive_notes: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+
+
+@chat.function(
+    "unarchive_notes",
+    action_type="write",
+    chain_callable=True,
+    effects=["update:note"],
+    event="bulk_unarchived",
+    description="Remove MULTIPLE notes from the archive (unarchive). Pass note_ids OR note_titles.",
+    data_model=BulkNotesActionResult,
+)
+async def fn_unarchive_notes(ctx, params: BulkNotesParams) -> ActionResult:
+    try:
+        return await _bulk_action(ctx, params, action="unarchive", ok_verb="unarchived")
+    except NotesAPIError as e:
+        return ActionResult.error(f"unarchive_notes backend returned {e.status_code}: {e.detail}")
+    except Exception as e:
+        log.error("unarchive_notes: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+
+
+@chat.function(
+    "restore_notes",
+    action_type="write",
+    chain_callable=True,
+    effects=["update:note"],
+    event="bulk_restored",
+    description="Restore MULTIPLE notes from trash. Pass note_ids OR note_titles.",
+    data_model=BulkNotesActionResult,
+)
+async def fn_restore_notes(ctx, params: BulkNotesParams) -> ActionResult:
+    try:
+        return await _bulk_action(ctx, params, action="restore", ok_verb="restored")
+    except NotesAPIError as e:
+        return ActionResult.error(f"restore_notes backend returned {e.status_code}: {e.detail}")
+    except Exception as e:
+        log.error("restore_notes: %s", e)
         return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
 
 

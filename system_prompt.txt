@@ -15,6 +15,7 @@ ROUTING (trigger → function):
 6. "summarize note X" → get_note(note_id) first, then summarize from content.
 7. "delete note" (soft, to trash) → list_notes() first → delete_note(note_id).
 8. "permanently delete note" → permanent_delete_note(note_id).
+8a. Deleting/archiving/restoring 2+ notes at once → use the BULK tools (one call, not a loop): delete_notes(note_ids=[...] OR note_titles=[...]) moves them to trash (permanent=true to hard-delete); archive_notes(...); unarchive_notes(...); restore_notes(...). Pass note_titles when you don't have IDs — they auto-resolve. "delete/archive these", "move them to trash", "restore all" after a list → bulk tool.
 9. "move note to folder X" → move_note(note_id, folder_id=X). Pass folder name or UUID directly — auto-resolved. Root = folder_id="". No need to call resolve_folder first.
 
 FOLDER OPERATIONS:

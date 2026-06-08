@@ -6,6 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.14.0] — 2026-06-08
+
+### Added
+
+- **Bulk actions on multiple notes at once.** New `delete_notes`, `archive_notes`,
+  `unarchive_notes` and `restore_notes` — pass a list of note IDs or note titles and
+  the action is applied to all of them in one call (delete defaults to trash; pass
+  `permanent=true` to delete for good).
+- **Multi-select in the sidebar.** Hover to reveal checkboxes, pick several notes, then
+  use the bulk bar: in the notes view — Archive / To Trash / Delete; in Archived —
+  Unarchive / To Trash / Delete; in Trash — Restore / Delete.
+
+---
+
 ## [3.13.0] — 2026-06-03
 
 ### Changed

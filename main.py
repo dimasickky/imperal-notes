@@ -1,4 +1,4 @@
-"""Notes · entrypoint (v3.12.0 — adds append_to_note)."""
+"""Notes · entrypoint (v3.14.0 — bulk delete/archive/restore + GUI multi-select)."""
 from __future__ import annotations
 
 import sys, os

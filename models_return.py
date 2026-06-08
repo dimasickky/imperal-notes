@@ -78,6 +78,15 @@ class BulkDeleteNotesResult(BaseModel):
     permanent: bool
 
 
+class BulkNotesActionResult(BaseModel):
+    """Result of a bulk action over an explicit note-id set."""
+    affected_count: int
+    action: str
+    note_ids: list[str] = []
+    not_found: list[str] = []
+    refresh_panels: list[str] = []
+
+
 class SearchNotesResult(sdl.EntityList[SearchNoteItem]):
     """search_notes — a REAL sdl.EntityList[SearchNoteItem]; query + pagination cursors
     carried as additive typed fields; has_more inherited from EntityList."""
