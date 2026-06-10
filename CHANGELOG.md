@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.15.1] — 2026-06-11
+
+### Changed
+
+- Maintenance release — rebuilt against the latest platform SDK. No functional or behavioral changes.
+
+---
+
 ## [3.15.0] — 2026-06-08
 
 ### Added
