@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.15.3] — 2026-06-25
+
+### Fixed
+
+- Extension icon now follows the active theme — light on dark backgrounds, dark on light — instead of a fixed colour.
+
+---
+
 ## [3.15.2] — 2026-06-16
 
 ### Changed
