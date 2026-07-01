@@ -29,7 +29,6 @@ from imperal_sdk.chat import ChatExtension, ActionResult  # noqa: F401 — re-ex
 log = logging.getLogger("notes")
 
 NOTES_API_URL = os.environ["NOTES_API_URL"]
-NOTES_API_KEY = os.getenv("NOTES_API_KEY", "")
 
 
 
@@ -50,8 +49,10 @@ def _url(path: str) -> str:
     return f"{NOTES_API_URL.rstrip('/')}{path}"
 
 
-def _auth() -> dict:
-    return {"x-api-key": NOTES_API_KEY} if NOTES_API_KEY else {}
+async def _auth(ctx) -> dict:
+    # App-scope secret from Vault (Developer Portal → Secrets). No value in code.
+    key = (await ctx.secrets.get("notes_api_key")) or ""
+    return {"x-api-key": key} if key else {}
 
 
 def _raise_from(resp, path: str) -> None:
@@ -69,28 +70,28 @@ def _raise_from(resp, path: str) -> None:
 
 
 async def _api_get(ctx, path: str, params: dict | None = None) -> dict:
-    r = await ctx.http.get(_url(path), params=params or {}, headers=_auth())
+    r = await ctx.http.get(_url(path), params=params or {}, headers=await _auth(ctx))
     _raise_from(r, path)
     body = r.body
     return body if isinstance(body, dict) else {}
 
 
 async def _api_post(ctx, path: str, data: dict | None = None, params: dict | None = None) -> dict:
-    r = await ctx.http.post(_url(path), json=data, params=params, headers=_auth())
+    r = await ctx.http.post(_url(path), json=data, params=params, headers=await _auth(ctx))
     _raise_from(r, path)
     body = r.body
     return body if isinstance(body, dict) else {}
 
 
 async def _api_patch(ctx, path: str, params: dict, data: dict) -> dict:
-    r = await ctx.http.patch(_url(path), params=params, json=data, headers=_auth())
+    r = await ctx.http.patch(_url(path), params=params, json=data, headers=await _auth(ctx))
     _raise_from(r, path)
     body = r.body
     return body if isinstance(body, dict) else {}
 
 
 async def _api_delete(ctx, path: str, params: dict) -> dict:
-    r = await ctx.http.delete(_url(path), params=params, headers=_auth())
+    r = await ctx.http.delete(_url(path), params=params, headers=await _auth(ctx))
     _raise_from(r, path)
     body = r.body
     return body if isinstance(body, dict) else {}
@@ -101,7 +102,7 @@ async def _api_upload(ctx, path: str, params: dict, filename: str,
     r = await ctx.http.post(
         _url(path),
         params=params,
-        headers=_auth(),
+        headers=await _auth(ctx),
         files={"file": (filename, data, content_type)},
     )
     _raise_from(r, path)
@@ -171,7 +172,7 @@ async def _resolve_folder_name(ctx, name: str) -> str | None:
 
 ext = Extension(
     "notes",
-    version="3.15.3",
+    version="3.16.0",
     capabilities=["notes:read", "notes:write"],
     display_name="Notes",
     description=(
@@ -230,12 +231,26 @@ chat = ChatExtension(
 )
 
 
+# ─── Secrets (app-scope: one developer-owned key, shared by all users) ────── #
+
+ext.secret(
+    name="notes_api_key",
+    description=(
+        "API key the notes backend authenticates with. Shared across all "
+        "users; set once in Developer Portal → Secrets."
+    ),
+    scope="app",
+    required=True,
+    max_bytes=256,
+)(lambda: None)
+
+
 # ─── Lifecycle ────────────────────────────────────────────────────────────── #
 
 @ext.health_check
 async def health(ctx) -> dict:
     try:
-        r = await ctx.http.get(_url("/health"), headers=_auth())
+        r = await ctx.http.get(_url("/health"), headers=await _auth(ctx))
         if not r.ok:
             return {"status": "degraded", "version": ext.version, "api": "unreachable"}
         return {"status": "ok", "version": ext.version, "api": "reachable"}
