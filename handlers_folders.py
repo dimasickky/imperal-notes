@@ -43,7 +43,7 @@ class DeleteFolderWithContentsParams(BaseModel):
     folder_id: str = Field(
         default="",
         description=(
-            "Folder UUID OR folder name — pass the name directly (e.g. 'химарь'), "
+            "Folder UUID OR folder name — pass the name directly (e.g. 'Groceries'), "
             "it will be auto-resolved to UUID. Do NOT leave empty."
         ),
         validation_alias=AliasChoices("folder_id", "folder", "folderId", "id", "uuid", "name"),

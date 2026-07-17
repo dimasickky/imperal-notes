@@ -4,6 +4,15 @@ All notable changes to Imperal Notes are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [3.16.4] — 2026-07-18
+
+### Fixed
+
+- Replaced a leftover Russian example value (`'химарь'`) with an English placeholder
+  (`'Groceries'`) in the `folder_id` parameter description on
+  `DeleteFolderWithContentsParams` / `DeleteNotesFromFolderParams`. Cosmetic only —
+  the parameter still auto-resolves any folder name, in any language.
+
 ## [3.16.3] — 2026-07-17
 
 ### Changed
