@@ -4,6 +4,15 @@ All notable changes to Imperal Notes are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [3.16.3] — 2026-07-17
+
+### Changed
+
+- Maintenance release — rebuilt against `imperal-sdk==5.9.9` (picks up upstream fixes for
+  structured error codes, provider tool-name length checks, and declared-capabilities
+  enforcement). No functional or behavioral changes; `imperal validate` reports 0 errors
+  against the new SDK.
+
 ## [3.16.2] — 2026-07-15
 
 ### Changed
