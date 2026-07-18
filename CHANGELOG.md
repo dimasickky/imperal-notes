@@ -4,6 +4,26 @@ All notable changes to Imperal Notes are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## v3.17.0 — 2026-07-18 — SDK 5.9.11 + structured error codes on every error path
+
+### Changed
+- Bumped `imperal-sdk` pin `5.9.9` → `5.9.11` (no breaking changes affect this
+  extension — module imports verified clean under the new pin).
+- Every `ActionResult.error(...)` call site (94 total across
+  handlers_attachments.py, handlers_export.py, handlers_folders.py,
+  handlers_notes.py, handlers_panel_actions.py) now carries a structured
+  `code=` (SDK 5.9.7+, validator rule V32) instead of relying on prose
+  alone: platform taxonomy codes (`imperal_sdk.chat.error_codes`) where
+  they fit (`VALIDATION_MISSING_FIELD`, `VALIDATION_TYPE_ERROR`,
+  `INTERNAL`), plus a small new app-declared set in `error_codes.py` for
+  notes-specific failures the platform taxonomy doesn't cover
+  (`NOTES_INVALID_NOTE_ID`, `NOTES_FOLDER_NOT_FOUND`,
+  `NOTES_NOTE_NOT_FOUND`, `NOTES_BACKEND_ERROR`).
+- No behavior change for users — this is diagnosability-only.
+
+All handler modules import clean under the new pin; pyflakes clean on every
+edited file (0 undefined names).
+
 ## [3.16.4] — 2026-07-18
 
 ### Fixed

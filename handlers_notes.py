@@ -21,6 +21,8 @@ from models_return import (
     MoveNoteResult, DeleteNoteResult, BulkDeleteNotesResult, SearchNotesResult,
     BulkNotesActionResult,
 )
+from imperal_sdk.chat.error_codes import VALIDATION_MISSING_FIELD, INTERNAL
+from error_codes import NOTES_INVALID_NOTE_ID, NOTES_FOLDER_NOT_FOUND, NOTES_BACKEND_ERROR, NOTES_NOTE_NOT_FOUND
 
 log = logging.getLogger("notes.handlers")
 
@@ -48,7 +50,8 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
             if not folder_id:
                 return ActionResult.error(
                     f"Folder '{params.folder_id}' not found. "
-                    "Use list_folders() to see available folders."
+                    "Use list_folders() to see available folders.",
+                    code=NOTES_FOLDER_NOT_FOUND,
                 )
             qp["folder_id"] = folder_id
         if params.search:                  qp["search"] = params.search
@@ -101,10 +104,10 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
             ),
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"list_notes backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"list_notes backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("list_notes: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -116,7 +119,7 @@ async def fn_list_notes(ctx, params: ListNotesParams) -> ActionResult:
 async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
         if err := _bad_id(params.note_id):
-            return ActionResult.error(err)
+            return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
         data = await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": require_user_id(ctx)})
         note = data.get("note", {})
         entity = NoteEntity(
@@ -138,10 +141,10 @@ async def fn_get_note(ctx, params: NoteIdParams) -> ActionResult:
             summary=f"Note '{entity.title}' (id={entity.id})",
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"get_note backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"get_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("get_note: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -160,7 +163,8 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
 
         if not title and not content.strip():
             return ActionResult.error(
-                "Note must have a title or content. Pass title and/or content_text."
+                "Note must have a title or content. Pass title and/or content_text.",
+                code=VALIDATION_MISSING_FIELD,
             )
 
         if title and len(title) >= 3 and content.startswith(title):
@@ -174,7 +178,8 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
         if params.folder_id and not folder_id:
             return ActionResult.error(
                 f"Folder '{params.folder_id}' not found. "
-                "Use list_folders() to see available folders."
+                "Use list_folders() to see available folders.",
+                code=NOTES_FOLDER_NOT_FOUND,
             )
 
         body: dict = {
@@ -197,10 +202,10 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
             summary=f"Note created: {note.get('title', params.title)}",
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"create_note backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"create_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("create_note: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -219,14 +224,14 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
 async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     try:
         if err := _bad_id(params.note_id):
-            return ActionResult.error(err)
+            return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
         updates: dict = {}
         if params.title:                 updates["title"] = params.title
         if params.content_text:          updates["content_text"] = params.content_text
         if params.tags is not None:      updates["tags"] = params.tags
         if params.is_pinned is not None: updates["is_pinned"] = params.is_pinned
         if not updates:
-            return ActionResult.error("No fields to update")
+            return ActionResult.error("No fields to update", code=VALIDATION_MISSING_FIELD)
 
         user_id = require_user_id(ctx)
         current = (await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": user_id})).get("note", {})
@@ -256,10 +261,10 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
             summary=f"Note updated: {title}",
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"update_note backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"update_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("update_note: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -280,11 +285,12 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
 async def fn_append_to_note(ctx, params: AppendNoteParams) -> ActionResult:
     try:
         if err := _bad_id(params.note_id):
-            return ActionResult.error(err)
+            return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
         addition = params.content_text.strip()
         if not addition:
             return ActionResult.error(
-                "Nothing to append. Pass content_text with the text to add."
+                "Nothing to append. Pass content_text with the text to add.",
+                code=VALIDATION_MISSING_FIELD,
             )
 
         user_id = require_user_id(ctx)
@@ -314,10 +320,10 @@ async def fn_append_to_note(ctx, params: AppendNoteParams) -> ActionResult:
             summary=f"Appended to note '{entity.title}'",
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"append_to_note backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"append_to_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("append_to_note: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -332,12 +338,13 @@ async def fn_append_to_note(ctx, params: AppendNoteParams) -> ActionResult:
 async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
     try:
         if err := _bad_id(params.note_id):
-            return ActionResult.error(err)
+            return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
         folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id)
         if params.folder_id and not folder_id:
             return ActionResult.error(
                 f"Folder '{params.folder_id}' not found. "
-                "Use list_folders() to see available folders."
+                "Use list_folders() to see available folders.",
+                code=NOTES_FOLDER_NOT_FOUND,
             )
         data = await _api_patch(
             ctx, f"/notes/{params.note_id}",
@@ -355,10 +362,10 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
             summary=f"Note moved to {target}",
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"move_note backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"move_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("move_note: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -373,15 +380,15 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
 async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
         if err := _bad_id(params.note_id):
-            return ActionResult.error(err)
+            return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
         await _api_delete(ctx, f"/notes/{params.note_id}",
                           {"user_id": require_user_id(ctx), "permanent": "false"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note moved to trash")
     except NotesAPIError as e:
-        return ActionResult.error(f"delete_note backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"delete_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("delete_note: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -397,15 +404,15 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
     try:
         if err := _bad_id(params.note_id):
-            return ActionResult.error(err)
+            return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
         await _api_delete(ctx, f"/notes/{params.note_id}",
                           {"user_id": require_user_id(ctx), "permanent": "true"})
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note permanently deleted")
     except NotesAPIError as e:
-        return ActionResult.error(f"permanent_delete_note backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"permanent_delete_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("permanent_delete_note: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -427,7 +434,8 @@ async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) 
         folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id.strip())
         if not folder_id:
             return ActionResult.error(
-                "Folder not found. Pass folder_id with the folder name or UUID."
+                "Folder not found. Pass folder_id with the folder name or UUID.",
+                code=NOTES_FOLDER_NOT_FOUND,
             )
         resp = await _api_delete(ctx, "/notes/bulk", {
             "user_id":   require_user_id(ctx),
@@ -443,11 +451,12 @@ async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) 
         )
     except NotesAPIError as e:
         return ActionResult.error(
-            f"delete_notes_from_folder backend returned {e.status_code}: {e.detail}"
+            f"delete_notes_from_folder backend returned {e.status_code}: {e.detail}",
+            code=NOTES_BACKEND_ERROR,
         )
     except Exception as e:
         log.error("delete_notes_from_folder: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 # ── Bulk actions over an explicit note-id set ─────────────────────────────── #
@@ -499,8 +508,8 @@ async def _bulk_action(ctx, params, *, action: str, ok_verb: str, scope_filter: 
     ids, not_found = await _resolve_bulk_ids(ctx, params.note_ids, params.note_titles, scope_filter)
     if not ids:
         if not_found:
-            return ActionResult.error(f"No matching notes found for: {', '.join(not_found)}.")
-        return ActionResult.error("Pass note_ids or note_titles — nothing to act on.")
+            return ActionResult.error(f"No matching notes found for: {', '.join(not_found)}.", code=NOTES_NOTE_NOT_FOUND)
+        return ActionResult.error("Pass note_ids or note_titles — nothing to act on.", code=VALIDATION_MISSING_FIELD)
     resp = await _api_post(ctx, "/notes/bulk-action", {
         "user_id": require_user_id(ctx), "note_ids": ids, "action": action,
     })
@@ -542,10 +551,10 @@ async def fn_delete_notes(ctx, params: DeleteNotesParams) -> ActionResult:
             scope_filter=_SCOPE_ACTIVE,
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"delete_notes backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"delete_notes backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("delete_notes: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -562,10 +571,10 @@ async def fn_archive_notes(ctx, params: BulkNotesParams) -> ActionResult:
         return await _bulk_action(ctx, params, action="archive", ok_verb="archived",
                                   scope_filter=_SCOPE_ACTIVE)
     except NotesAPIError as e:
-        return ActionResult.error(f"archive_notes backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"archive_notes backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("archive_notes: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -582,10 +591,10 @@ async def fn_unarchive_notes(ctx, params: BulkNotesParams) -> ActionResult:
         return await _bulk_action(ctx, params, action="unarchive", ok_verb="unarchived",
                                   scope_filter=_SCOPE_ARCHIVED)
     except NotesAPIError as e:
-        return ActionResult.error(f"unarchive_notes backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"unarchive_notes backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("unarchive_notes: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -602,10 +611,10 @@ async def fn_restore_notes(ctx, params: BulkNotesParams) -> ActionResult:
         return await _bulk_action(ctx, params, action="restore", ok_verb="restored",
                                   scope_filter=_SCOPE_TRASHED)
     except NotesAPIError as e:
-        return ActionResult.error(f"restore_notes backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"restore_notes backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("restore_notes: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -622,7 +631,7 @@ async def fn_restore_notes(ctx, params: BulkNotesParams) -> ActionResult:
 async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
     try:
         if not params.query.strip():
-            return ActionResult.error("Search query is required. Pass query (or q).")
+            return ActionResult.error("Search query is required. Pass query (or q).", code=VALIDATION_MISSING_FIELD)
         resp = await _api_get(ctx, "/notes/search/fulltext", {
             "user_id":   require_user_id(ctx),
             "tenant_id": _tenant_id(ctx),
@@ -670,7 +679,7 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
             ),
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"search_notes backend returned {e.status_code}: {e.detail}")
+        return ActionResult.error(f"search_notes backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("search_notes: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)

@@ -9,6 +9,8 @@ log = logging.getLogger("notes.handlers")
 
 from app import chat, ActionResult, NotesAPIError, _api_delete, _api_upload, require_user_id
 from models_return import UploadAttachmentResult, DeleteAttachmentResult
+from imperal_sdk.chat.error_codes import VALIDATION_MISSING_FIELD, VALIDATION_TYPE_ERROR, INTERNAL
+from error_codes import NOTES_BACKEND_ERROR
 
 
 def _extract_b64(payload) -> tuple[str, str, str]:
@@ -65,16 +67,16 @@ class AttachmentDeleteParams(BaseModel):
 async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionResult:
     uid = require_user_id(ctx)
     if not params.note_id:
-        return ActionResult.error("note_id required")
+        return ActionResult.error("note_id required", code=VALIDATION_MISSING_FIELD)
 
     b64, filename, content_type = _extract_b64(params.files)
     if not b64:
-        return ActionResult.error("No file data received")
+        return ActionResult.error("No file data received", code=VALIDATION_MISSING_FIELD)
 
     try:
         file_bytes = base64.b64decode(b64)
     except Exception:
-        return ActionResult.error("Invalid file data (base64 decode failed)")
+        return ActionResult.error("Invalid file data (base64 decode failed)", code=VALIDATION_TYPE_ERROR)
 
     try:
         result = await _api_upload(
@@ -89,10 +91,10 @@ async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionRes
             summary=f"Uploaded {filename}",
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"Upload failed: {e.status_code} {e.detail}")
+        return ActionResult.error(f"Upload failed: {e.status_code} {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("upload_attachment: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -108,7 +110,7 @@ async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionRes
 async def fn_delete_attachment(ctx, params: AttachmentDeleteParams) -> ActionResult:
     uid = require_user_id(ctx)
     if not params.att_id:
-        return ActionResult.error("att_id required")
+        return ActionResult.error("att_id required", code=VALIDATION_MISSING_FIELD)
 
     try:
         await _api_delete(ctx, f"/attachments/{params.att_id}", {"user_id": uid})
@@ -117,7 +119,7 @@ async def fn_delete_attachment(ctx, params: AttachmentDeleteParams) -> ActionRes
             summary="Attachment deleted",
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"Delete failed: {e.status_code} {e.detail}")
+        return ActionResult.error(f"Delete failed: {e.status_code} {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("delete_attachment: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)

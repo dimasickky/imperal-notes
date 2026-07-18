@@ -12,6 +12,8 @@ from app import (
     require_user_id, _bad_id,
 )
 from models_return import NoteSaveResult
+from imperal_sdk.chat.error_codes import VALIDATION_MISSING_FIELD, INTERNAL
+from error_codes import NOTES_INVALID_NOTE_ID
 
 
 class NoteSaveParams(BaseModel):
@@ -56,12 +58,12 @@ class NoteSaveParams(BaseModel):
 async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
     uid = require_user_id(ctx)
     if err := _bad_id(params.note_id):
-        return ActionResult.error(err)
+        return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
 
     try:
         if params.field == "title":
             if not params.title:
-                return ActionResult.error("Title cannot be empty")
+                return ActionResult.error("Title cannot be empty", code=VALIDATION_MISSING_FIELD)
             await _api_patch(ctx, f"/notes/{params.note_id}", {"user_id": uid},
                              {"title": params.title})
             return ActionResult.success(
@@ -116,11 +118,11 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
             )
 
         log.error("note_save: unknown field %r", params.field)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
     except NotesAPIError as e:
         log.error("note_save: API error %s %s", e.status_code, e.detail)
-        return ActionResult.error("Save failed. Please try again.", retryable=True)
+        return ActionResult.error("Save failed. Please try again.", retryable=True, code=INTERNAL)
     except Exception as e:
         log.error("note_save: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)

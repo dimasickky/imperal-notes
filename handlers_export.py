@@ -10,6 +10,8 @@ from app import chat, ActionResult, NotesAPIError, _api_get, _api_post, require_
 from imperal_sdk import ui
 from models_notes import NoteIdParams
 from models_return import DuplicateNoteResult, ExportMarkdownResult
+from imperal_sdk.chat.error_codes import VALIDATION_MISSING_FIELD, INTERNAL
+from error_codes import NOTES_BACKEND_ERROR
 
 log = logging.getLogger("notes.handlers")
 
@@ -35,7 +37,7 @@ async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
     uid = require_user_id(ctx)
     tid = _tenant_id(ctx)
     if not params.note_id:
-        return ActionResult.error("note_id required")
+        return ActionResult.error("note_id required", code=VALIDATION_MISSING_FIELD)
 
     try:
         data = await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": uid})
@@ -55,10 +57,10 @@ async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
             summary=f"Duplicated as '{new_note.get('title', '')}'",
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"Duplicate failed: {e.status_code} {e.detail}")
+        return ActionResult.error(f"Duplicate failed: {e.status_code} {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("duplicate_note: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 
 @chat.function(
@@ -70,7 +72,7 @@ async def fn_duplicate_note(ctx, params: NoteIdParams) -> ActionResult:
 async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
     uid = require_user_id(ctx)
     if not params.note_id:
-        return ActionResult.error("note_id required")
+        return ActionResult.error("note_id required", code=VALIDATION_MISSING_FIELD)
 
     try:
         data = await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": uid})
@@ -104,7 +106,7 @@ async def fn_export_markdown(ctx, params: NoteIdParams) -> ActionResult:
             ]),
         )
     except NotesAPIError as e:
-        return ActionResult.error(f"Export failed: {e.status_code} {e.detail}")
+        return ActionResult.error(f"Export failed: {e.status_code} {e.detail}", code=NOTES_BACKEND_ERROR)
     except Exception as e:
         log.error("export_markdown: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
