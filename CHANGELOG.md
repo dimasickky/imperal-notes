@@ -4,6 +4,14 @@ All notable changes to Imperal Notes are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## v3.17.1 — 2026-07-19 — SDK 5.9.12
+
+### Changed
+- Bumped `imperal-sdk` pin `5.9.11` → `5.9.12` (5.9.10 file_sinks manifest
+  contract, 5.9.11 `ui.FileUpload` widget, 5.9.12 internal shared-httpx-pool
+  refactor for gateway-facing clients — none of this extension's code paths
+  are affected; pure pin bump, no source changes needed).
+
 ## v3.17.0 — 2026-07-18 — SDK 5.9.11 + structured error codes on every error path
 
 ### Changed
