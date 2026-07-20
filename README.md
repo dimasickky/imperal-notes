@@ -1,5 +1,3 @@
-<div align="center">
-
 # Imperal Notes
 
 ### Your personal AI-powered notebook on Imperal Cloud.
@@ -7,13 +5,11 @@
 **Write. Organize. Ask. — all in one place.**
 
 [![Platform](https://img.shields.io/badge/platform-Imperal%20Cloud-blue)](https://imperal.io)
-[![SDK](https://img.shields.io/badge/imperal--sdk-1.5.7-blue)](https://pypi.org/project/imperal-sdk/)
-[![Version](https://img.shields.io/badge/version-2.4.0-brightgreen)]()
+[![SDK](https://img.shields.io/badge/imperal--sdk-5.9.12-blue)](https://pypi.org/project/imperal-sdk/)
+[![Version](https://img.shields.io/badge/version-3.17.1-brightgreen)]()
 [![License](https://img.shields.io/badge/license-LGPL--3.0-blue)](LICENSE)
 
 [Features](#features) | [Functions](#functions) | [Architecture](#architecture) | [Development](#development) | [Platform](https://imperal.io)
-
-</div>
 
 ---
 
@@ -164,7 +160,7 @@ The extension publishes the following events for use in Automation Rules:
 
 ## Development
 
-Built with [Imperal SDK](https://github.com/imperalcloud/imperal-sdk) v1.5.7.
+Built with [Imperal SDK](https://github.com/imperalcloud/imperal-sdk) v5.9.12.
 
 ```bash
 python3.11 -m venv .venv
@@ -196,8 +192,4 @@ Passes all 12 Imperal SDK validation rules (V1–V12):
 
 ---
 
-<div align="center">
-
 **Built for [Imperal Cloud](https://imperal.io)**
-
-</div>
