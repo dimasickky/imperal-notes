@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "5.9.12",
   "app_id": "notes",
-  "version": "3.17.1",
+  "version": "3.18.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -2607,6 +2607,120 @@
       "owner_chat_tool": "tool_notes_chat"
     },
     {
+      "name": "delete_folders",
+      "description": "Delete MULTIPLE folders at once. Pass folder_ids (list) OR folder_names (list of names). By default notes inside are just detached (moved to root); pass with_contents=true to trash (or permanent=true to permanently delete) the notes inside each folder too. Use for bulk/multi-select folder cleanup.",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": [
+        "delete:folder"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "description": "Bulk-delete multiple folders by ID and/or name in one call.\n\nPass folder_ids when you already have them (e.g. from the GUI multi-select,\nwhich injects checked IDs as message_ids into this same field), or\nfolder_names to auto-resolve by display name.",
+        "properties": {
+          "folder_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of folder UUIDs to delete. Use when you already have the IDs.",
+            "title": "Folder Ids"
+          },
+          "folder_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of folder names to find and delete. Auto-resolved to UUIDs.",
+            "title": "Folder Names"
+          },
+          "with_contents": {
+            "default": false,
+            "description": "If true, notes inside each folder are moved to trash (or permanently deleted if permanent=true) before the folder is removed. If false (default), notes are just detached (moved to root).",
+            "title": "With Contents",
+            "type": "boolean"
+          },
+          "permanent": {
+            "default": false,
+            "description": "Only applies when with_contents=true: permanently delete notes instead of trashing them.",
+            "title": "Permanent",
+            "type": "boolean"
+          }
+        },
+        "title": "DeleteFoldersParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "Result of a bulk delete over an explicit folder-id set.",
+        "properties": {
+          "deleted_count": {
+            "title": "Deleted Count",
+            "type": "integer"
+          },
+          "folder_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Folder Ids",
+            "type": "array"
+          },
+          "not_found": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Found",
+            "type": "array"
+          },
+          "with_contents": {
+            "default": false,
+            "title": "With Contents",
+            "type": "boolean"
+          },
+          "permanent": {
+            "default": false,
+            "title": "Permanent",
+            "type": "boolean"
+          },
+          "refresh_panels": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deleted_count"
+        ],
+        "title": "BulkDeleteFoldersResult",
+        "type": "object"
+      },
+      "event": "folders_bulk_deleted",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
       "name": "list_trash",
       "description": "List all notes in trash.",
       "action_type": "read",
@@ -3364,7 +3478,7 @@
       "title": "Notes",
       "tree": {},
       "icon": "StickyNote",
-      "refresh": "on_event:notes.created,notes.updated,notes.deleted,notes.moved,notes.restored,notes.permanently_deleted,notes.emptied,notes.bulk_deleted,notes.bulk_archived,notes.bulk_unarchived,notes.bulk_restored,notes.folder_created,notes.folder_renamed,notes.folder_deleted,notes.folder_with_contents_deleted",
+      "refresh": "on_event:notes.created,notes.updated,notes.deleted,notes.moved,notes.restored,notes.permanently_deleted,notes.emptied,notes.bulk_deleted,notes.bulk_archived,notes.bulk_unarchived,notes.bulk_restored,notes.folder_created,notes.folder_renamed,notes.folder_deleted,notes.folder_with_contents_deleted,notes.folders_bulk_deleted",
       "center_overlay": false,
       "default_width": 280,
       "min_width": 200,

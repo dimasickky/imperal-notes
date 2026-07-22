@@ -143,6 +143,16 @@ class DeleteFolderWithContentsResult(BaseModel):
     refresh_panels: list[str]
 
 
+class BulkDeleteFoldersResult(BaseModel):
+    """Result of a bulk delete over an explicit folder-id set."""
+    deleted_count: int
+    folder_ids: list[str] = []
+    not_found: list[str] = []
+    with_contents: bool = False
+    permanent: bool = False
+    refresh_panels: list[str] = []
+
+
 class TrashNoteItem(sdl.Entity, sdl.Categorized):
     """Slim SDL note entity for trash list results. id=note_id, kind='note';
     sdl.Categorized provides tags."""

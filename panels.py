@@ -22,7 +22,8 @@ log = logging.getLogger("notes")
         "notes.restored,notes.permanently_deleted,notes.emptied,"
         "notes.bulk_deleted,notes.bulk_archived,notes.bulk_unarchived,"
         "notes.bulk_restored,notes.folder_created,notes.folder_renamed,"
-        "notes.folder_deleted,notes.folder_with_contents_deleted"
+        "notes.folder_deleted,notes.folder_with_contents_deleted,"
+        "notes.folders_bulk_deleted"
     ),
 )
 async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
@@ -209,7 +210,16 @@ def _append_folders(children: list, folders: list, active_folder: str,
         on_click=ui.Call("__panel__sidebar", folder_id="__unfiled__"),
     ))
     children.append(ui.Divider("Folders"))
-    children.append(ui.List(items=items))
+    children.append(ui.List(
+        items=items,
+        selectable=True,
+        bulk_actions=[
+            {"label": "Delete",         "icon": "Trash2",
+             "action": ui.Call("delete_folders")},
+            {"label": "Delete + notes", "icon": "XCircle",
+             "action": ui.Call("delete_folders", with_contents=True)},
+        ],
+    ))
 
 
 def _append_notes(children: list, all_notes: list, folder_id: str,

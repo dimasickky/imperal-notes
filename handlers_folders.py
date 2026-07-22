@@ -1,6 +1,7 @@
 """Notes · Folder & trash handlers."""
 
 import logging
+from typing import Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -11,7 +12,7 @@ from app import (
 )
 from models_return import (
     ListFoldersResult, ResolveFolderResult, CreateFolderResult, RenameFolderResult,
-    DeleteFolderResult, DeleteFolderWithContentsResult,
+    DeleteFolderResult, DeleteFolderWithContentsResult, BulkDeleteFoldersResult,
     ListTrashResult, RestoreNoteResult, EmptyTrashResult,
     FolderEntity, TrashNoteItem,
 )
@@ -36,6 +37,39 @@ class FolderIdParams(BaseModel):
     folder_id: str = Field(
         default="", description="Folder UUID. Required.",
         validation_alias=AliasChoices("folder_id", "folder", "folderId", "id", "uuid"),
+    )
+
+
+class DeleteFoldersParams(BaseModel):
+    """Bulk-delete multiple folders by ID and/or name in one call.
+
+    Pass folder_ids when you already have them (e.g. from the GUI multi-select,
+    which injects checked IDs as message_ids into this same field), or
+    folder_names to auto-resolve by display name.
+    """
+    model_config = _MODEL_CONFIG
+
+    folder_ids: Optional[list[str]] = Field(
+        default=None,
+        description="List of folder UUIDs to delete. Use when you already have the IDs.",
+        validation_alias=AliasChoices("folder_ids", "message_ids", "ids", "folder_id"),
+    )
+    folder_names: Optional[list[str]] = Field(
+        default=None,
+        description="List of folder names to find and delete. Auto-resolved to UUIDs.",
+        validation_alias=AliasChoices("folder_names", "names", "titles"),
+    )
+    with_contents: bool = Field(
+        default=False,
+        description=(
+            "If true, notes inside each folder are moved to trash (or permanently "
+            "deleted if permanent=true) before the folder is removed. "
+            "If false (default), notes are just detached (moved to root)."
+        ),
+    )
+    permanent: bool = Field(
+        default=False,
+        description="Only applies when with_contents=true: permanently delete notes instead of trashing them.",
     )
 
 
@@ -332,6 +366,81 @@ async def fn_delete_folder_with_contents(
         )
     except Exception as e:
         log.error("delete_folder_with_contents: %s", e)
+        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
+
+
+@chat.function(
+    "delete_folders",
+    action_type="destructive",
+    effects=["delete:folder"],
+    event="folders_bulk_deleted",
+    description=(
+        "Delete MULTIPLE folders at once. Pass folder_ids (list) OR folder_names "
+        "(list of names). By default notes inside are just detached (moved to root); "
+        "pass with_contents=true to trash (or permanent=true to permanently delete) "
+        "the notes inside each folder too. Use for bulk/multi-select folder cleanup."
+    ),
+    data_model=BulkDeleteFoldersResult,
+)
+async def fn_delete_folders(ctx, params: DeleteFoldersParams) -> ActionResult:
+    try:
+        uid = require_user_id(ctx)
+
+        ids: list = []
+        seen: set = set()
+        for fid in (params.folder_ids or []):
+            fid = (fid or "").strip()
+            if fid and fid not in seen:
+                seen.add(fid)
+                ids.append(fid)
+
+        not_found: list = []
+        for name in (params.folder_names or []):
+            name = (name or "").strip()
+            if not name:
+                continue
+            resolved = await _resolve_folder_name(ctx, name)
+            if resolved and resolved not in seen:
+                seen.add(resolved)
+                ids.append(resolved)
+            elif not resolved:
+                not_found.append(name)
+
+        if not ids:
+            return ActionResult.error(
+                "No valid folders to delete. Pass folder_ids or folder_names "
+                "(use list_folders() first to get real IDs/names).",
+                code=VALIDATION_MISSING_FIELD,
+            )
+
+        resp = await _api_post(ctx, "/folders/bulk-delete", {
+            "user_id":       uid,
+            "folder_ids":    ids,
+            "with_contents": params.with_contents,
+            "permanent":     params.permanent,
+        })
+        deleted_count = resp.get("deleted_count", 0)
+        deleted_ids = resp.get("folder_ids", ids)
+
+        summary = f"Deleted {deleted_count} folder(s)"
+        if not_found:
+            summary += f"; {len(not_found)} name(s) not found: {', '.join(not_found)}"
+
+        return ActionResult.success(
+            data={
+                "deleted_count":  deleted_count,
+                "folder_ids":     deleted_ids,
+                "not_found":      not_found,
+                "with_contents":  params.with_contents,
+                "permanent":      params.permanent,
+                "refresh_panels": ["sidebar"],
+            },
+            summary=summary,
+        )
+    except NotesAPIError as e:
+        return ActionResult.error(f"delete_folders backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
+    except Exception as e:
+        log.error("delete_folders: %s", e)
         return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
 
 

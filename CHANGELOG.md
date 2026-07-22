@@ -4,6 +4,17 @@ All notable changes to Imperal Notes are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## v3.18.0 — 2026-07-23 — Bulk folder delete
+
+### Added
+- New `delete_folders(folder_ids|folder_names, with_contents=False, permanent=False)`
+  — bulk-delete multiple folders in one call, mirroring the existing bulk pattern
+  for notes (`delete_notes`/`archive_notes`/etc). Backend: new `POST /folders/bulk-delete`
+  on notes-api (additive, scoped to `user_id`, one transaction).
+- Sidebar folder list is now `selectable=True` with bulk actions ("Delete",
+  "Delete + notes") — multi-select delete instead of one-at-a-time only.
+- New refresh event `notes.folders_bulk_deleted` wired into the sidebar panel.
+
 ## v3.17.1 — 2026-07-19 — SDK 5.9.12
 
 ### Changed
