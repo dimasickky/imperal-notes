@@ -146,17 +146,15 @@ async def _resolve_folder_id_or_name(ctx, value: str) -> str:
     return await _resolve_folder_name(ctx, v) or ""
 
 
-async def _resolve_folder_name(ctx, name: str) -> str | None:
-    """Return folder UUID for a given display name (case-insensitive, fuzzy). None if not found."""
-    target = name.strip().lower()
+def _match_folder_name(folders: list, name: str) -> str | None:
+    """Pick the folder matching `name` out of an ALREADY-FETCHED list.
+
+    Pure and local, so the matching precedence — exact, then prefix, then
+    contains — lives in exactly one place and cannot drift between the
+    single-name and batch resolvers below.
+    """
+    target = (name or "").strip().lower()
     if not target:
-        return None
-    try:
-        folders = (await _api_get(ctx, "/folders", {
-            "user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
-        })).get("folders", [])
-    except Exception as e:
-        log.warning("_resolve_folder_name: API error during lookup: %s", e)
         return None
     exact = next((f for f in folders if f["name"].strip().lower() == target), None)
     if exact:
@@ -168,11 +166,64 @@ async def _resolve_folder_name(ctx, name: str) -> str | None:
     return contain["id"] if contain else None
 
 
+async def _fetch_folders(ctx) -> list:
+    """Fetch this user's folder list once. Empty list on failure (callers treat
+    that as 'nothing matched', which is what the old per-name resolver did)."""
+    try:
+        return (await _api_get(ctx, "/folders", {
+            "user_id": _user_id(ctx), "tenant_id": _tenant_id(ctx),
+        })).get("folders", [])
+    except Exception as e:
+        log.warning("_fetch_folders: API error during lookup: %s", e)
+        return []
+
+
+async def _resolve_folder_name(ctx, name: str) -> str | None:
+    """Return folder UUID for a given display name (case-insensitive, fuzzy). None if not found."""
+    target = (name or "").strip()
+    if not target:
+        return None
+    return _match_folder_name(await _fetch_folders(ctx), target)
+
+
+async def _resolve_folder_names(ctx, names: list) -> tuple[list, list]:
+    """Resolve MANY folder names with ONE backend call. Returns (ids, not_found).
+
+    The bulk delete path used to call _resolve_folder_name per name, and that
+    function fetches the whole folder list every time — so deleting 10 folders
+    by name meant 10 identical requests for the same unchanging list. The folder
+    set cannot change between those calls (nothing here mutates it), so the
+    repeats bought nothing but latency.
+
+    This mirrors what the notes bulk path already does one file over: fetch the
+    pool once, then match every name against it in memory. Order of `ids`
+    follows the order of `names`, and duplicates collapse — a user naming the
+    same folder twice should not get it counted twice.
+    """
+    cleaned = [(n or "").strip() for n in (names or [])]
+    cleaned = [n for n in cleaned if n]
+    if not cleaned:
+        return [], []
+
+    folders = await _fetch_folders(ctx)
+    ids: list = []
+    seen: set = set()
+    not_found: list = []
+    for name in cleaned:
+        resolved = _match_folder_name(folders, name)
+        if not resolved:
+            not_found.append(name)
+        elif resolved not in seen:
+            seen.add(resolved)
+            ids.append(resolved)
+    return ids, not_found
+
+
 # ─── Extension ───────────────────────────────────────────────────────────── #
 
 ext = Extension(
     "notes",
-    version="3.18.1",
+    version="3.18.2",
     capabilities=["notes:read", "notes:write"],
     display_name="Notes",
     description=(

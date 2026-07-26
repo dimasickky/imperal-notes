@@ -8,7 +8,8 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from app import (
     chat, ActionResult, NotesAPIError,
     _api_get, _api_post, _api_patch, _api_delete,
-    require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_id_or_name, _bad_id,
+    require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_names,
+    _resolve_folder_id_or_name, _bad_id,
 )
 from models_return import (
     ListFoldersResult, ResolveFolderResult, CreateFolderResult, RenameFolderResult,
@@ -395,16 +396,16 @@ async def fn_delete_folders(ctx, params: DeleteFoldersParams) -> ActionResult:
                 ids.append(fid)
 
         not_found: list = []
-        for name in (params.folder_names or []):
-            name = (name or "").strip()
-            if not name:
-                continue
-            resolved = await _resolve_folder_name(ctx, name)
-            if resolved and resolved not in seen:
+        # ONE backend call for every name, instead of one per name: the old loop
+        # called _resolve_folder_name per entry and that refetches the whole
+        # folder list each time. Dedup against ids already collected from
+        # folder_ids, so naming a folder that was also passed by id does not
+        # delete-count it twice.
+        resolved_ids, not_found = await _resolve_folder_names(ctx, params.folder_names)
+        for resolved in resolved_ids:
+            if resolved not in seen:
                 seen.add(resolved)
                 ids.append(resolved)
-            elif not resolved:
-                not_found.append(name)
 
         if not ids:
             return ActionResult.error(

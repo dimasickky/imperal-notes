@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.18.2] — 2026-07-27
+
+### Fixed
+
+- **Deleting folders by name made one backend request per name.**
+  `delete_folders` resolved each name through `_resolve_folder_name`, and that
+  helper fetches the *entire* folder list every call — so deleting 10 folders by
+  name meant 10 identical `/folders` requests to answer a question one request
+  already answers. Sibling code in `handlers_notes.py` had this right all along
+  (fetch the pool once, match locally); the folder path simply never followed.
+
+  Added `_resolve_folder_names` — one fetch, all names matched in memory. The
+  matching precedence (exact, then prefix, then contains) moved into a pure
+  `_match_folder_name` helper shared by both resolvers, so single-name and batch
+  lookups cannot drift apart. `_resolve_folder_name` is now a one-name call into
+  the same code and behaves exactly as before.
+
 All notable changes to Imperal Notes are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
