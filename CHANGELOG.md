@@ -4,6 +4,17 @@ All notable changes to Imperal Notes are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## v3.18.1 — 2026-07-27 — Skeleton freshness
+
+### Changed
+- Skeleton `ttl` 300s → 60s. Every `create_note` / `delete_note` / pin / move
+  changes the counters and the recent-notes list, and the SDK's skeleton client
+  is read-only — a handler cannot invalidate the section after a write, so the
+  refresh tick is the only thing closing the gap. At 300s the assistant could
+  answer "how many notes do I have" from a five-minute-old count immediately
+  after creating one. Panels are unaffected (they always fetch fresh); this is
+  purely about what the model sees.
+
 ## v3.18.0 — 2026-07-23 — Bulk folder delete
 
 ### Added

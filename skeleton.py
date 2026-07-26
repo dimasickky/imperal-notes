@@ -12,7 +12,19 @@ log = logging.getLogger("notes")
 @ext.skeleton(
     "notes",
     alert=False,
-    ttl=300,
+    # 60s, down from 300s. This snapshot is invalidated by our OWN tools — every
+    # create_note / delete_note / pin / move changes the counters and the
+    # recent_notes list — and the SDK's SkeletonClient is read-only, so a
+    # handler has no ctx.skeleton.invalidate() to call after a write. The tick
+    # is the only thing closing the window, and at 300s the model could answer
+    # "how many notes do I have" from a five-minute-old count right after
+    # creating one. Panels don't read the skeleton (they fetch fresh), so this
+    # is purely about what the LLM sees.
+    #
+    # Not lower on purpose: the platform derives its tick from the MINIMUM ttl
+    # across all of a user's sections (floor 15s), so a smaller value here
+    # speeds up every other extension's refresh too.
+    ttl=60,
     description="Note statistics: total count, pinned, trash, folders, recent notes with folder.",
 )
 async def skeleton_refresh_notes(ctx) -> dict:
