@@ -1,5 +1,37 @@
 # Changelog
 
+## [3.19.0] — 2026-07-27
+
+### Added
+
+- **`move_notes`** — move several notes into one folder in a single call.
+  Filing a dozen notes was a dozen calls before this.
+- **`delete_attachments`** — delete several attachments in a single call.
+
+### Notes
+
+- **Why these two fan out while the other batches do not.** Every existing
+  batch here (`delete_notes`, `archive_notes`, `restore_notes`, …) is one POST
+  to `/notes/bulk-action`, which is strictly better *when the backend has an
+  action for it*. There is no `move` action and no bulk attachment endpoint, so
+  these two issue one request per item instead. That is the only honest option,
+  and it is what makes the two extra guarantees below necessary rather than
+  decorative.
+- **Bounded concurrency (8), matching `tasks._BULK_CONCURRENCY`.** A serial
+  loop over 40 notes is 40 serialised round trips and walks into the 180s a
+  tool call gets; an unbounded gather over 200 hammers the notes backend.
+- **A 200-item ceiling, checked before any request goes out.** A limit
+  enforced mid-flight protects nothing — by then half the batch has already
+  happened.
+- **Per-item rows, not just a count.** The bulk-action tools legitimately
+  return a single `affected_count` because the backend does the work in one
+  shot. A fanned-out batch cannot honestly report that way: 8 separate requests
+  can fail individually, so each item reports its own outcome and both counts
+  appear in the summary. A partial run can never read as a clean one.
+- **The target folder is resolved once per batch**, not per note. The answer
+  cannot change between notes, and it is also the one failure that would hit
+  every item at once — so it is checked before anything moves.
+
 ## [3.18.2] — 2026-07-27
 
 ### Fixed

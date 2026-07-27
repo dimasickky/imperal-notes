@@ -1,6 +1,7 @@
 """Notes · CRUD handlers."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from app import (
@@ -12,14 +13,14 @@ from app import (
 from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
     AppendNoteParams, CreateNoteParams, DeleteNotesFromFolderParams, ListNotesParams,
-    MoveNoteParams, NoteIdParams, SearchNotesParams, UpdateNoteParams,
+    MoveNoteParams, MoveNotesParams, NoteIdParams, SearchNotesParams, UpdateNoteParams,
     BulkNotesParams, DeleteNotesParams,
 )
 from models_return import (
     ListNotesResult, NoteEntity, NoteListItem, SearchNoteItem,
     CreateNoteResult, UpdateNoteResult,
     MoveNoteResult, DeleteNoteResult, BulkDeleteNotesResult, SearchNotesResult,
-    BulkNotesActionResult,
+    BulkNotesActionResult, BulkFanoutResult,
 )
 from imperal_sdk.chat.error_codes import VALIDATION_MISSING_FIELD, INTERNAL
 from error_codes import NOTES_INVALID_NOTE_ID, NOTES_FOLDER_NOT_FOUND, NOTES_BACKEND_ERROR, NOTES_NOTE_NOT_FOUND
@@ -498,6 +499,67 @@ async def _resolve_bulk_ids(ctx, note_ids, note_titles, scope_filter: dict) -> t
     return ids, not_found
 
 
+# ─── fan-out batching (for actions with no /notes/bulk-action equivalent) ── #
+#
+# Most batches here are one POST to /notes/bulk-action, which is strictly
+# better when the backend supports the action. Move and attachment-delete have
+# no such action, so they issue one request per item — and that is exactly
+# where the two extra guarantees below start to matter.
+#
+# The concurrency cap matches tasks._BULK_CONCURRENCY (8) for the same reason:
+# a serial loop over 40 notes is 40 serialised round trips and walks into the
+# 180s a tool call gets, while an unbounded gather over 200 hammers the notes
+# backend. The ceiling is checked before any request goes out, because a limit
+# enforced mid-flight protects nothing.
+_BULK_CONCURRENCY = 8
+MAX_BULK_ITEMS = 200
+
+
+def _check_batch_size(items: list, noun: str) -> ActionResult | None:
+    """Reject an empty or oversized batch before any network call happens."""
+    if not items:
+        return ActionResult.error(f"No {noun} given.", code=VALIDATION_MISSING_FIELD)
+    if len(items) > MAX_BULK_ITEMS:
+        return ActionResult.error(
+            f"That's {len(items)} {noun} in one call — the limit is {MAX_BULK_ITEMS}. "
+            "Split it into smaller batches.",
+            code=VALIDATION_MISSING_FIELD,
+        )
+    return None
+
+
+async def _run_fanout(ctx, rows: list[tuple[str, str]], op) -> list[dict]:
+    """Run `op(item_id)` over rows concurrently, one result row per item.
+
+    `rows` is [(id, label)]. `op` returns None on success or an error string.
+    A failure never sinks the batch: the caller is entitled to know which of
+    the eight moves happened and which did not, rather than getting a single
+    verdict for the whole set.
+    """
+    sem = asyncio.Semaphore(_BULK_CONCURRENCY)
+    done = 0
+
+    async def _one(item_id: str, label: str) -> dict:
+        nonlocal done
+        async with sem:
+            try:
+                err = await op(item_id)
+            except NotesAPIError as e:
+                err = f"{e.status_code} {e.detail}"
+            except Exception as e:  # noqa: BLE001 — one bad item must not kill the batch
+                log.error("bulk item %s: %s", item_id, e)
+                err = "unexpected error"
+        done += 1
+        if hasattr(ctx, "progress"):
+            try:
+                await ctx.progress(done / max(len(rows), 1), f"{done}/{len(rows)}")
+            except Exception:  # noqa: BLE001 — progress is cosmetic, never fatal
+                pass
+        return {"id": item_id, "title": label, "ok": err is None, "error": err}
+
+    return list(await asyncio.gather(*(_one(i, l) for i, l in rows)))
+
+
 # Title-resolution scopes per action (list-endpoint filters).
 _SCOPE_ACTIVE   = {"is_archived": False, "is_trashed": False}
 _SCOPE_ARCHIVED = {"is_archived": True}
@@ -683,3 +745,101 @@ async def fn_search_notes(ctx, params: SearchNotesParams) -> ActionResult:
     except Exception as e:
         log.error("search_notes: %s", e)
         return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
+
+
+@chat.function(
+    "move_notes",
+    action_type="write",
+    chain_callable=True,
+    effects=["update:note"],
+    event="bulk_moved",
+    description=(
+        "Move MULTIPLE notes into the same folder at once. Pass note_ids (list of IDs) OR "
+        "note_titles (list of names, auto-resolved), plus folder_id (a folder UUID or name — "
+        "empty moves them to root). Use when the user wants to move 2+ notes."
+    ),
+    data_model=BulkFanoutResult,
+)
+async def fn_move_notes(ctx, params: MoveNotesParams) -> ActionResult:
+    """Move a set of notes into one folder, reported per note.
+
+    Filing a dozen notes into a folder was a dozen calls before this. There is
+    no `move` action on /notes/bulk-action, so this fans out one PATCH per
+    note — bounded, with a row per note so a partial run is visible.
+
+    The target folder is resolved **once** for the whole batch rather than per
+    note: the answer cannot change between notes, and resolving N times would
+    add N lookups to no purpose. Getting it wrong is also the one failure that
+    would hit every item at once, so it is checked before anything moves.
+    """
+    try:
+        folder_id = await _resolve_folder_id_or_name(ctx, params.folder_id)
+        if params.folder_id and not folder_id:
+            return ActionResult.error(
+                f"Folder '{params.folder_id}' not found. "
+                "Use list_folders() to see available folders.",
+                code=NOTES_FOLDER_NOT_FOUND,
+            )
+
+        oversized = _check_batch_size(
+            (params.note_ids or []) + (params.note_titles or []), "notes",
+        )
+        if oversized:
+            return oversized
+
+        ids, not_found = await _resolve_bulk_ids(
+            ctx, params.note_ids, params.note_titles, _SCOPE_ACTIVE,
+        )
+        if not ids:
+            if not_found:
+                return ActionResult.error(
+                    f"No matching notes found for: {', '.join(not_found)}.",
+                    code=NOTES_NOTE_NOT_FOUND,
+                )
+            return ActionResult.error(
+                "Pass note_ids or note_titles — nothing to move.",
+                code=VALIDATION_MISSING_FIELD,
+            )
+
+        uid = require_user_id(ctx)
+
+        async def _move_one(note_id: str) -> str | None:
+            await _api_patch(
+                ctx, f"/notes/{note_id}", {"user_id": uid},
+                {"folder_id": folder_id if folder_id else None},
+            )
+            return None
+
+        rows = await _run_fanout(ctx, [(i, i) for i in ids], _move_one)
+
+        moved = sum(1 for r in rows if r["ok"])
+        failed = len(rows) - moved
+        target = folder_id or "All Notes"
+
+        summary = f"{moved} note(s) moved to {target}"
+        if failed:
+            summary += f", {failed} failed"
+        if not_found:
+            summary += f" ({len(not_found)} not found: {', '.join(not_found)})"
+
+        return ActionResult.success(
+            data={
+                "succeeded_count": moved,
+                "failed_count": failed,
+                "results": rows,
+                "not_found": not_found,
+                "refresh_panels": ["__panel__sidebar"],
+            },
+            summary=summary,
+        )
+    except NotesAPIError as e:
+        return ActionResult.error(
+            f"move_notes backend returned {e.status_code}: {e.detail}",
+            code=NOTES_BACKEND_ERROR,
+        )
+    except Exception as e:
+        log.error("move_notes: %s", e)
+        return ActionResult.error(
+            "An unexpected error occurred. Please try again.",
+            retryable=True, code=INTERNAL,
+        )

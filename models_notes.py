@@ -282,3 +282,17 @@ class DeleteNotesParams(BulkNotesParams):
         description="If true, permanently delete (cannot be undone). If false (default), move to trash.",
         validation_alias=AliasChoices("permanent", "hard_delete", "force_delete"),
     )
+
+
+class MoveNotesParams(BulkNotesParams):
+    """Bulk move: one target folder for the whole set.
+
+    Inherits note_ids / note_titles from BulkNotesParams on purpose — title
+    resolution has to behave exactly like every other batch here, not almost
+    like it.
+    """
+    folder_id: str = Field(
+        default="",
+        description="Target folder UUID or folder name — auto-resolved. Empty string moves them to root (All Notes).",
+        validation_alias=AliasChoices("folder_id", "folder", "folderId"),
+    )

@@ -2,13 +2,18 @@
 
 import base64
 import logging
+from typing import List
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 log = logging.getLogger("notes.handlers")
 
 from app import chat, ActionResult, NotesAPIError, _api_delete, _api_upload, require_user_id
-from models_return import UploadAttachmentResult, DeleteAttachmentResult
+# The batch below reuses the note batches' fan-out helpers rather than growing
+# a second, subtly different copy here. main.py imports handlers_notes first
+# and that module does not import this one, so there is no cycle.
+from handlers_notes import _check_batch_size, _run_fanout
+from models_return import UploadAttachmentResult, DeleteAttachmentResult, BulkFanoutResult
 from imperal_sdk.chat.error_codes import VALIDATION_MISSING_FIELD, VALIDATION_TYPE_ERROR, INTERNAL
 from error_codes import NOTES_BACKEND_ERROR
 
@@ -123,3 +128,76 @@ async def fn_delete_attachment(ctx, params: AttachmentDeleteParams) -> ActionRes
     except Exception as e:
         log.error("delete_attachment: %s", e)
         return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
+
+
+class AttachmentsDeleteParams(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    att_ids: List[str] = Field(
+        default_factory=list,
+        description="List of attachment UUIDs to delete.",
+        validation_alias=AliasChoices("att_ids", "attachment_ids", "ids"),
+    )
+
+
+@chat.function(
+    "delete_attachments",
+    action_type="destructive",
+    chain_callable=True,
+    effects=["delete:attachment"],
+    event="attachments.deleted",
+    description=(
+        "Delete SEVERAL file attachments at once. Pass att_ids (list of attachment UUIDs). "
+        "Use when the user wants to remove 2+ attachments in one request."
+    ),
+    data_model=BulkFanoutResult,
+)
+async def fn_delete_attachments(ctx, params: AttachmentsDeleteParams) -> ActionResult:
+    """Delete a set of attachments, reported per attachment.
+
+    Clearing out a note's files was one call per file until now. There is no
+    bulk endpoint for attachments, so this fans out one DELETE each, bounded
+    and with a row per item — reusing the exact helpers the note batches use
+    rather than growing a second, subtly different pattern in this file.
+
+    Unlike notes, attachments have no trash to fall back on, so a row that
+    fails is reported by id and the rest still go through: on a cleanup run,
+    knowing which two of eight survived is the whole point.
+    """
+    uid = require_user_id(ctx)
+
+    oversized = _check_batch_size(params.att_ids, "attachments")
+    if oversized:
+        return oversized
+
+    rows = [(a.strip(), a.strip()) for a in params.att_ids if (a or "").strip()]
+    if not rows:
+        return ActionResult.error("No attachments given.", code=VALIDATION_MISSING_FIELD)
+
+    async def _delete_one(att_id: str) -> str | None:
+        try:
+            await _api_delete(ctx, f"/attachments/{att_id}", {"user_id": uid})
+            return None
+        except NotesAPIError as e:
+            return f"{e.status_code} {e.detail}"
+
+    results = await _run_fanout(ctx, rows, _delete_one)
+
+    succeeded = sum(1 for r in results if r["ok"])
+    failed = len(results) - succeeded
+    if failed:
+        broken = ", ".join(r["id"] for r in results if not r["ok"])
+        summary = f"Deleted {succeeded} of {len(results)} attachment(s) — {failed} failed: {broken}"
+    else:
+        summary = f"Deleted {succeeded} attachment(s)"
+
+    return ActionResult.success(
+        data={
+            "succeeded_count": succeeded,
+            "failed_count": failed,
+            "results": results,
+            "not_found": [],
+            "refresh_panels": ["editor"],
+        },
+        summary=summary,
+    )

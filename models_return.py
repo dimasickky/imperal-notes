@@ -93,6 +93,29 @@ class BulkNotesActionResult(BaseModel):
     refresh_panels: list[str] = []
 
 
+class BulkItemRow(BaseModel):
+    """One row of a fanned-out batch.
+
+    The bulk actions that go through /notes/bulk-action get a single
+    affected_count back from the backend and that is genuinely all there is to
+    report. Move and attachment-delete have no bulk endpoint, so they issue one
+    request per item — and then a bare count would hide *which* ones failed.
+    Hence a row per item.
+    """
+    id: str
+    title: str = ""
+    ok: bool = False
+    error: Optional[str] = None
+
+
+class BulkFanoutResult(BaseModel):
+    succeeded_count: int
+    failed_count: int
+    results: list[BulkItemRow] = []
+    not_found: list[str] = []
+    refresh_panels: list[str] = []
+
+
 class SearchNotesResult(sdl.EntityList[SearchNoteItem]):
     """search_notes — a REAL sdl.EntityList[SearchNoteItem]; query + pagination cursors
     carried as additive typed fields; has_more inherited from EntityList."""

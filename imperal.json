@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "5.9.12",
   "app_id": "notes",
-  "version": "3.18.2",
+  "version": "3.19.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -2114,6 +2114,147 @@
       "owner_chat_tool": "tool_notes_chat"
     },
     {
+      "name": "move_notes",
+      "description": "Move MULTIPLE notes into the same folder at once. Pass note_ids (list of IDs) OR note_titles (list of names, auto-resolved), plus folder_id (a folder UUID or name — empty moves them to root). Use when the user wants to move 2+ notes.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "update:note"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "description": "Bulk move: one target folder for the whole set.\n\nInherits note_ids / note_titles from BulkNotesParams on purpose — title\nresolution has to behave exactly like every other batch here, not almost\nlike it.",
+        "properties": {
+          "note_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of note IDs to act on. Use when you already have the IDs.",
+            "title": "Note Ids",
+            "x-sdl-role": "ref.target_id"
+          },
+          "note_titles": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of note titles to find and act on. Auto-resolved to IDs via search.",
+            "title": "Note Titles"
+          },
+          "folder_id": {
+            "default": "",
+            "description": "Target folder UUID or folder name — auto-resolved. Empty string moves them to root (All Notes).",
+            "title": "Folder Id",
+            "type": "string"
+          }
+        },
+        "title": "MoveNotesParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "BulkItemRow": {
+            "description": "One row of a fanned-out batch.\n\nThe bulk actions that go through /notes/bulk-action get a single\naffected_count back from the backend and that is genuinely all there is to\nreport. Move and attachment-delete have no bulk endpoint, so they issue one\nrequest per item — and then a bare count would hide *which* ones failed.\nHence a row per item.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "default": "",
+                "title": "Title",
+                "type": "string"
+              },
+              "ok": {
+                "default": false,
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Error"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "title": "BulkItemRow",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "succeeded_count": {
+            "title": "Succeeded Count",
+            "type": "integer"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "results": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/BulkItemRow"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "not_found": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Found",
+            "type": "array"
+          },
+          "refresh_panels": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "succeeded_count",
+          "failed_count"
+        ],
+        "title": "BulkFanoutResult",
+        "type": "object"
+      },
+      "event": "bulk_moved",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
       "name": "list_folders",
       "description": "List all note folders.",
       "action_type": "read",
@@ -3290,6 +3431,115 @@
         "type": "object"
       },
       "event": "attachment.deleted",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
+      "name": "delete_attachments",
+      "description": "Delete SEVERAL file attachments at once. Pass att_ids (list of attachment UUIDs). Use when the user wants to remove 2+ attachments in one request.",
+      "action_type": "destructive",
+      "chain_callable": true,
+      "effects": [
+        "delete:attachment"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "att_ids": {
+            "description": "List of attachment UUIDs to delete.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Att Ids",
+            "type": "array"
+          }
+        },
+        "title": "AttachmentsDeleteParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "BulkItemRow": {
+            "description": "One row of a fanned-out batch.\n\nThe bulk actions that go through /notes/bulk-action get a single\naffected_count back from the backend and that is genuinely all there is to\nreport. Move and attachment-delete have no bulk endpoint, so they issue one\nrequest per item — and then a bare count would hide *which* ones failed.\nHence a row per item.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "default": "",
+                "title": "Title",
+                "type": "string"
+              },
+              "ok": {
+                "default": false,
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Error"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "title": "BulkItemRow",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "succeeded_count": {
+            "title": "Succeeded Count",
+            "type": "integer"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "results": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/BulkItemRow"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "not_found": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Found",
+            "type": "array"
+          },
+          "refresh_panels": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "succeeded_count",
+          "failed_count"
+        ],
+        "title": "BulkFanoutResult",
+        "type": "object"
+      },
+      "event": "attachments.deleted",
       "background": false,
       "long_running": false,
       "scopes": [],
