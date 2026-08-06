@@ -551,6 +551,32 @@ async def _resolve_bulk_ids(ctx, note_ids, note_titles, scope_filter: dict) -> t
     return ids, not_found
 
 
+async def _titles_for(ctx, ids: list[str]) -> dict[str, str]:
+    """Map note ids → titles in ONE request, for readable batch output.
+
+    Batch results echo a label per row, and a UUID there tells the user
+    nothing about which note succeeded. Titles come from a single list call
+    rather than a GET per note: a 200-note batch would otherwise pay 200 extra
+    round trips purely for cosmetics, which is not a trade worth making.
+
+    Best-effort by design — a note missing from the page (or a failed lookup)
+    just falls back to its id rather than failing the move itself.
+    """
+    try:
+        qp = {"user_id": require_user_id(ctx), "tenant_id": _tenant_id(ctx),
+              "limit": MAX_NOTES_PER_PAGE, "offset": 0}
+        resp = await _api_get(ctx, "/notes", qp)
+        pool = resp.get("notes", []) if isinstance(resp, dict) else []
+        wanted = set(ids)
+        return {
+            n["id"]: (n.get("title") or "").strip() or n["id"]
+            for n in pool if n.get("id") in wanted
+        }
+    except Exception as e:  # noqa: BLE001 — labels are cosmetic, never fatal
+        log.warning("title lookup for batch labels failed: %s", e)
+        return {}
+
+
 # ─── fan-out batching (for actions with no /notes/bulk-action equivalent) ── #
 #
 # Most batches here are one POST to /notes/bulk-action, which is strictly
@@ -877,11 +903,17 @@ async def fn_move_notes(ctx, params: MoveNotesParams) -> ActionResult:
             )
             return None
 
-        rows = await _run_fanout(ctx, [(i, i) for i in ids], _move_one)
+        # Label each row with the note's real title, not its id. `_run_fanout`
+        # echoes the label back as `title`, so passing the id twice made every
+        # row report a UUID where a human-readable name belongs — the batch
+        # result was unreadable for the one thing it is meant to confirm.
+        titles = await _titles_for(ctx, ids)
+        rows = await _run_fanout(ctx, [(i, titles.get(i, i)) for i in ids], _move_one)
 
         moved = sum(1 for r in rows if r["ok"])
         failed = len(rows) - moved
-        target = folder_id or "All Notes"
+        # Report the folder the user named, not the UUID it resolved to.
+        target = (params.folder_id.strip() or "All Notes") if params.folder_id else "All Notes"
 
         summary = f"{moved} note(s) moved to {target}"
         if failed:
