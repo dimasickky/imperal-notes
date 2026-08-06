@@ -168,6 +168,23 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
                 code=VALIDATION_MISSING_FIELD,
             )
 
+        # A title with an empty body is a legitimate note ("make a note called
+        # Shopping list"), so it is not rejected. But it is ALSO the exact shape
+        # produced when the caller's own output got cut off mid-arguments: the
+        # title survives, the body never arrives, and the note is saved at zero
+        # characters with a cheerful "Note created" — the failure looks like a
+        # success and is only discovered when the user opens an empty note.
+        #
+        # So the emptiness is reported instead of hidden: it goes in the summary
+        # the caller reads back, and `content_chars` makes it machine-checkable.
+        # Nothing is blocked, but nothing is silent either.
+        if title and not content.strip():
+            log.warning(
+                "create_note: empty body with title=%r — intentional title-only "
+                "note, or truncated arguments upstream",
+                title[:60],
+            )
+
         if title and len(title) >= 3 and content.startswith(title):
             log.warning(
                 "title-bleed detected on create_note (title=%r); stripping duplicate prefix",
@@ -194,13 +211,25 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
             body["folder_id"] = folder_id
 
         note = (await _api_post(ctx, "/notes", body)).get("note", {})
+        content_chars = len(content)
+        created_title = note.get("title") or params.title
+        summary = f"Note created: {created_title}"
+        if content_chars:
+            summary += f" ({content_chars} chars)"
+        else:
+            summary += " — WARNING: the body is EMPTY (0 chars). If you meant to "
+            summary += (
+                "write content into it, the text did not arrive: add it with "
+                "append_to_note instead of creating the note again."
+            )
         return ActionResult.success(
             data={
                 "note_id":   note.get("id"),
                 "title":     note.get("title"),
                 "folder_id": folder_id or None,
+                "content_chars": content_chars,
             },
-            summary=f"Note created: {note.get('title', params.title)}",
+            summary=summary,
         )
     except NotesAPIError as e:
         return ActionResult.error(f"create_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
@@ -226,9 +255,16 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     try:
         if err := _bad_id(params.note_id):
             return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
+        # "Was this field passed?" is not the same question as "is this field
+        # truthy", and only the first one is the right one here. A plain falsy
+        # check cannot express "clear the body": passing content_text="" to
+        # empty a note was silently dropped as if nothing had been asked, and
+        # the note kept its old text forever. `model_fields_set` distinguishes
+        # an omitted field (keep) from an explicitly passed empty one (clear).
+        given = params.model_fields_set
         updates: dict = {}
         if params.title:                 updates["title"] = params.title
-        if params.content_text:          updates["content_text"] = params.content_text
+        if "content_text" in given:      updates["content_text"] = params.content_text
         if params.tags is not None:      updates["tags"] = params.tags
         if params.is_pinned is not None: updates["is_pinned"] = params.is_pinned
         if not updates:
@@ -277,13 +313,28 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
     event="updated",
     description=(
         "Append text to the END of an existing note's body WITHOUT overwriting it. "
-        "Reads the current note, adds the new text after the existing content, then saves. "
+        "The text is added server-side in one atomic operation, so appending to a "
+        "long note stays cheap and two appends can never overwrite each other. "
         "Use this for any 'add to note / append / допиши / добавь в заметку' request — never "
         "use update_note to add content, because update_note REPLACES the whole body."
     ),
     data_model=NoteEntity,
 )
 async def fn_append_to_note(ctx, params: AppendNoteParams) -> ActionResult:
+    """Append to a note's body through the backend's atomic append.
+
+    This used to read the whole note, join the pieces here, and PATCH the entire
+    body back. Two problems with that, both of which show up exactly when a note
+    is being built up over many appends — the case this function exists for:
+
+      * lost updates — two appends that overlap both read the same "before" text
+        and the second write silently discards the first one's addition;
+      * cost — the full body crossed the network twice per append, so appending
+        one line to a 47k-character note moved ~94k characters to add ~40.
+
+    `POST /notes/{id}/append` does the concatenation inside a single SQL
+    statement, so only the new fragment is sent and no interleaving is possible.
+    """
     try:
         if err := _bad_id(params.note_id):
             return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
@@ -295,30 +346,31 @@ async def fn_append_to_note(ctx, params: AppendNoteParams) -> ActionResult:
             )
 
         user_id = require_user_id(ctx)
-        current = (await _api_get(ctx, f"/notes/{params.note_id}", {"user_id": user_id})).get("note", {})
-        existing = (current.get("content_text") or "").rstrip()
-        merged = f"{existing}\n\n{addition}" if existing else addition
-
-        note = (await _api_patch(
-            ctx, f"/notes/{params.note_id}",
+        # user_id is a query param on this endpoint (like every other /notes
+        # route), the fragment is the JSON body — passing it in the body instead
+        # would fail validation before the append ever runs.
+        resp = await _api_post(
+            ctx, f"/notes/{params.note_id}/append",
+            {"content_text": addition},
             {"user_id": user_id},
-            {"content_text": merged},
-        )).get("note", {})
+        )
+        note = (resp or {}).get("note", {})
 
         entity = NoteEntity(
             id=note.get("id") or params.note_id,
-            title=note.get("title") or current.get("title") or "Untitled",
+            title=note.get("title") or "Untitled",
             kind="note",
-            body=note.get("content_text", merged),
+            body=note.get("content_text", ""),
             tags=note.get("tags") or [],
             is_pinned=note.get("is_pinned", False),
             is_archived=note.get("is_archived", False),
             word_count=note.get("word_count", 0),
             folder_id=note.get("folder_id"),
         )
+        added = (resp or {}).get("appended_chars", len(addition))
         return ActionResult.success(
             data=entity,
-            summary=f"Appended to note '{entity.title}'",
+            summary=f"Appended {added} chars to note '{entity.title}'",
         )
     except NotesAPIError as e:
         return ActionResult.error(f"append_to_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
@@ -567,6 +619,17 @@ _SCOPE_TRASHED  = {"is_trashed": True}
 
 
 async def _bulk_action(ctx, params, *, action: str, ok_verb: str, scope_filter: dict) -> ActionResult:
+    # Same ceiling as the fan-out batches. Without it these went straight to the
+    # backend, which caps /notes/bulk-action at 500 and answers with a raw 422 —
+    # so a too-large delete failed with a backend error string instead of a
+    # sentence saying to split the batch. Checked before resolving titles, since
+    # resolving 400 titles only to refuse them wastes the work.
+    oversized = _check_batch_size(
+        (params.note_ids or []) + (params.note_titles or []), "notes",
+    )
+    if oversized:
+        return oversized
+
     ids, not_found = await _resolve_bulk_ids(ctx, params.note_ids, params.note_titles, scope_filter)
     if not ids:
         if not_found:
@@ -585,7 +648,11 @@ async def _bulk_action(ctx, params, *, action: str, ok_verb: str, scope_filter: 
             "action": action,
             "note_ids": (resp.get("note_ids", ids) if isinstance(resp, dict) else ids),
             "not_found": not_found,
-            "refresh_panels": ["__panel__sidebar"],
+            # Bare panel id — the host resolves it against its own left/right/
+            # center panel_ids. A "__panel__"-prefixed value is NOT a panel id:
+            # it gets prefixed a second time, resolves to no known panel, and
+            # the batch silently never refreshes the sidebar.
+            "refresh_panels": ["sidebar"],
         },
         summary=summary,
     )
@@ -828,7 +895,7 @@ async def fn_move_notes(ctx, params: MoveNotesParams) -> ActionResult:
                 "failed_count": failed,
                 "results": rows,
                 "not_found": not_found,
-                "refresh_panels": ["__panel__sidebar"],
+                "refresh_panels": ["sidebar"],
             },
             summary=summary,
         )

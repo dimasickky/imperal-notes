@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "5.9.12",
   "app_id": "notes",
-  "version": "3.19.0",
+  "version": "3.20.0",
   "name": "Notes",
   "description": "Personal notes with folders, tags, full-text search, and trash management for your workspace.",
   "icon": "icon.svg",
@@ -830,6 +830,11 @@
             ],
             "default": null,
             "title": "Folder Id"
+          },
+          "content_chars": {
+            "default": 0,
+            "title": "Content Chars",
+            "type": "integer"
           }
         },
         "title": "CreateNoteResult",
@@ -950,7 +955,7 @@
     },
     {
       "name": "append_to_note",
-      "description": "Append text to the END of an existing note's body WITHOUT overwriting it. Reads the current note, adds the new text after the existing content, then saves. Use this for any 'add to note / append / допиши / добавь в заметку' request — never use update_note to add content, because update_note REPLACES the whole body.",
+      "description": "Append text to the END of an existing note's body WITHOUT overwriting it. The text is added server-side in one atomic operation, so appending to a long note stays cheap and two appends can never overwrite each other. Use this for any 'add to note / append / допиши / добавь в заметку' request — never use update_note to add content, because update_note REPLACES the whole body.",
       "action_type": "write",
       "chain_callable": true,
       "effects": [
@@ -3246,6 +3251,66 @@
       "owner_chat_tool": "tool_notes_chat"
     },
     {
+      "name": "note_autosave",
+      "description": "Silently save the note body from the editor as the user types (debounced autosave). Does not refresh any panel and does not emit an update event, so typing is never interrupted. For explicit saves use note_save.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "update:note"
+      ],
+      "id_projection": "note_id",
+      "params_schema": {
+        "description": "Params for the editor's debounced content autosave.",
+        "properties": {
+          "note_id": {
+            "default": "",
+            "description": "Note UUID. Required.",
+            "title": "Note Id",
+            "type": "string"
+          },
+          "content_text": {
+            "default": "",
+            "description": "HTML content from the editor",
+            "title": "Content Text",
+            "type": "string"
+          }
+        },
+        "title": "NoteAutosaveParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "properties": {
+          "note_id": {
+            "title": "Note Id",
+            "type": "string"
+          },
+          "saved": {
+            "title": "Saved",
+            "type": "string"
+          },
+          "refresh_panels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Refresh Panels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "note_id",
+          "saved",
+          "refresh_panels"
+        ],
+        "title": "NoteSaveResult",
+        "type": "object"
+      },
+      "event": "",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "tool_notes_chat"
+    },
+    {
       "name": "note_save",
       "description": "Save a note field from the editor panel (title, content, tags, folder, pin, archive).",
       "action_type": "write",
@@ -3728,7 +3793,7 @@
       "title": "Notes",
       "tree": {},
       "icon": "StickyNote",
-      "refresh": "on_event:notes.created,notes.updated,notes.deleted,notes.moved,notes.restored,notes.permanently_deleted,notes.emptied,notes.bulk_deleted,notes.bulk_archived,notes.bulk_unarchived,notes.bulk_restored,notes.folder_created,notes.folder_renamed,notes.folder_deleted,notes.folder_with_contents_deleted,notes.folders_bulk_deleted",
+      "refresh": "on_event:notes.created,notes.updated,notes.deleted,notes.moved,notes.restored,notes.permanently_deleted,notes.emptied,notes.bulk_deleted,notes.bulk_archived,notes.bulk_unarchived,notes.bulk_restored,notes.bulk_moved,notes.folder_created,notes.folder_renamed,notes.folder_deleted,notes.folder_with_contents_deleted,notes.folders_bulk_deleted,notes.create_note,notes.update_note,notes.append_to_note,notes.note_save,notes.duplicate_note,notes.move_note,notes.move_notes,notes.delete_note,notes.delete_notes,notes.delete_notes_from_folder,notes.permanent_delete_note,notes.archive_notes,notes.unarchive_notes,notes.restore_note,notes.restore_notes,notes.empty_trash,notes.create_folder,notes.rename_folder,notes.delete_folder,notes.delete_folder_with_contents,notes.delete_folders",
       "center_overlay": false,
       "default_width": 280,
       "min_width": 200,

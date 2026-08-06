@@ -1,5 +1,91 @@
 # Changelog
 
+## [3.20.0] — 2026-08-06
+
+### Fixed
+
+- **A note created in chat did not appear in the sidebar until the page was
+  reloaded.** The sidebar refreshes on an exact list of event names, and that
+  list held only the `event=` values declared on the handlers — but the platform
+  publishes the *tool* name on one of its two publish paths, and in production
+  that is the path `create_note` actually took (`notes.create_note`, not
+  `notes.created`). Nothing matched, so nothing refreshed. Both naming schemes
+  are now listed, so the refresh happens whichever path the platform takes. A
+  duplicate refresh costs one re-fetch; a missed one loses the user's note from
+  view, so listing both is the correct trade.
+
+- **Batch actions never refreshed the sidebar.** `delete_notes`,
+  `archive_notes`, `restore_notes` and the rest returned
+  `refresh_panels: ["__panel__sidebar"]`. That is not a panel id — the host
+  resolves bare ids (`"sidebar"`), and the prefixed value matched no panel, so
+  the request went nowhere. Every batch appeared to do nothing until a reload.
+  `note_save` had it right (`"sidebar"`); the bulk paths simply never followed.
+
+- **Batch moves never refreshed either**, for a second and independent reason:
+  `move_notes` publishes `notes.bulk_moved`, which was missing from the
+  sidebar's list entirely.
+
+- **`update_note` could not clear a note's body.** Emptiness was tested for
+  truthiness, so `content_text=""` was indistinguishable from "field omitted"
+  and the clear was silently dropped. It now distinguishes *sent* from
+  *omitted* (`model_fields_set`), so passing an empty body clears it while
+  leaving it out still means "keep what's there". Works through the aliases too
+  (`content`, `body`), since Pydantic normalises those to the canonical name.
+
+- **`word_count` changed after a note's first edit, without the text
+  changing.** Creation counted words on the raw HTML — where `<p>` and `</p>`
+  score as words — while every update stripped the tags first. Both endpoints
+  now use the same counter, so the number no longer depends on which endpoint
+  last wrote it. Clearing a body also resets the count, which it previously did
+  not: the recount only ran when the new body was non-empty, leaving the old
+  count on a now-empty note.
+
+- **Oversized batches failed with a backend error instead of a clear message.**
+  The fan-out batches enforced the 200-item ceiling, but the bulk-action ones
+  went straight to a backend that caps at 500 and answers with a raw validation
+  error. They now check the same ceiling, before resolving any titles — refusing
+  after resolving 400 names wastes the work.
+
+### Added
+
+- **Atomic append — `POST /notes/{id}/append`.** `append_to_note` used to read
+  the whole note, join the pieces client-side, and write the entire body back.
+  Two appends that overlapped both read the same "before" text and the second
+  write discarded the first one's addition — a lost update in exactly the
+  scenario this function exists for. It also moved the full body across the
+  network twice per append, so adding one line to a long note shipped the whole
+  note twice. The concatenation now happens inside a single SQL statement, so
+  only the new fragment is sent and interleaving is impossible. Verified with
+  twelve concurrent appends: all twelve survive; the old path could not do that.
+
+- **Autosave in the editor — `note_autosave`.** The body is saved as you type
+  (debounced), and deliberately as a *separate* function with no declared
+  event: an event would publish on every keystroke-batch, and the platform's
+  event path re-fetches every panel — the open editor included — rebuilding it
+  under the cursor. That is what made the earlier autosave attempt unusable in
+  3.6.4. Returning an empty refresh list is not sufficient on its own, because
+  the event path fires independently of it. Both stay silent. Explicit saves
+  (Ctrl+S) still go through `note_save` and still refresh the sidebar.
+
+### Changed
+
+- **The "New Note" button can no longer leave empty notes behind.** Panel params
+  are sticky — the host merges each call's params over the previous ones — so
+  `note_id="new"` survived in that set and every later refresh re-entered the
+  create branch and made *another* note. Nine blank "Untitled" notes came from
+  this, four of them for one user inside seventy seconds, which is nobody's
+  clicking speed. The branch is now idempotent: an untouched blank note is
+  reopened instead of a second one being created. A note with any text in it
+  never matches, and the body is confirmed before reuse — reopening a note that
+  turned out to hold text would be worse than the extra empty note this avoids.
+
+- **`create_note` no longer reports an empty note as a plain success.** A
+  title-only note is legitimate and is still allowed, but it is also the exact
+  shape produced when the caller's arguments get truncated mid-call: the title
+  survives, the body never arrives, and the old summary said "Note created"
+  either way. The emptiness is now stated in the summary and exposed as
+  `content_chars`, so the failure cannot pass for a success.
+
 ## [3.19.0] — 2026-07-27
 
 ### Added

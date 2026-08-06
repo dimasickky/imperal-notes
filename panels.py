@@ -16,14 +16,39 @@ log = logging.getLogger("notes")
 @ext.panel(
     "sidebar", slot="left", title="Notes", icon="StickyNote",
     default_width=280, min_width=200, max_width=500,
+    # Two naming schemes have to be listed, not one.
+    #
+    # The kernel publishes a domain event under the name the *caller* supplied:
+    # when it carries an explicit event_type that is the tool name, and when it
+    # falls back to result.event it is the `event=` declared on the handler. Both
+    # happen in production for the same function — `create_note` was observed
+    # publishing `notes.create_note` (the tool name) far more often than
+    # `notes.created` (its declared event). The panel matcher is exact-match, so
+    # a list holding only the declared names silently misses most refreshes and
+    # a new note never shows up in the sidebar.
+    #
+    # Listing both names is harmless (a refresh that fires twice costs one
+    # re-fetch) and is the only variant that works regardless of which path the
+    # kernel took. `bulk_moved` / `move_notes` were missing entirely, which is
+    # why batch moves never refreshed the list.
     refresh=(
         "on_event:"
+        # declared `event=` names
         "notes.created,notes.updated,notes.deleted,notes.moved,"
         "notes.restored,notes.permanently_deleted,notes.emptied,"
         "notes.bulk_deleted,notes.bulk_archived,notes.bulk_unarchived,"
-        "notes.bulk_restored,notes.folder_created,notes.folder_renamed,"
+        "notes.bulk_restored,notes.bulk_moved,"
+        "notes.folder_created,notes.folder_renamed,"
         "notes.folder_deleted,notes.folder_with_contents_deleted,"
-        "notes.folders_bulk_deleted"
+        "notes.folders_bulk_deleted,"
+        # tool names — same events as published on the other kernel path
+        "notes.create_note,notes.update_note,notes.append_to_note,"
+        "notes.note_save,notes.duplicate_note,notes.move_note,notes.move_notes,"
+        "notes.delete_note,notes.delete_notes,notes.delete_notes_from_folder,"
+        "notes.permanent_delete_note,notes.archive_notes,notes.unarchive_notes,"
+        "notes.restore_note,notes.restore_notes,notes.empty_trash,"
+        "notes.create_folder,notes.rename_folder,notes.delete_folder,"
+        "notes.delete_folder_with_contents,notes.delete_folders"
     ),
 )
 async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",

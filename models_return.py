@@ -58,6 +58,10 @@ class CreateNoteResult(BaseModel):
     note_id: Optional[str] = None
     title: Optional[str] = None
     folder_id: Optional[str] = None
+    # Size of the body actually stored. 0 means the note was created empty —
+    # reported rather than hidden, so a truncated create is visible instead of
+    # passing for a success (see fn_create_note).
+    content_chars: int = 0
 
 
 class UpdateNoteResult(BaseModel):

@@ -48,15 +48,73 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
 
     # ── Create new note ───────────────────────────────────────────────────
     if note_id == "new":
+        # "new" is not a note id, it is an instruction — and the host keeps it.
+        #
+        # Panel params are sticky: the host merges each call's params over the
+        # previous ones for that panel, and a refresh (which any write event can
+        # trigger) re-invokes the panel with the merged set. So `note_id="new"`
+        # from the New Note button stays in that set and every later refresh
+        # arrives here again and creates ANOTHER note. Nine empty "Untitled"
+        # notes in the database came from this — four of them for one user
+        # inside seventy seconds, which is no one's clicking speed.
+        #
+        # The branch is therefore made idempotent instead of merely fast: if the
+        # user already has an untouched blank note, that one is reopened rather
+        # than a second one being made. A blank note is defined as Untitled with
+        # an empty body, not archived and not trashed — a note the user has typed
+        # anything into no longer matches and is never recycled.
         try:
-            result = await _api_post(ctx, "/notes", {
-                "user_id": uid, "tenant_id": tid,
-                "title": "Untitled", "content_text": "",
-            })
-            note    = result.get("note", {})
-            note_id = note.get("id", "")
-            if not note_id:
-                return ui.Error(message="Failed to create note")
+            existing_blank = ""
+            try:
+                probe = await _api_get(ctx, "/notes", {
+                    "user_id": uid, "tenant_id": tid,
+                    "limit": 20, "offset": 0,
+                    "is_archived": False, "is_trashed": False,
+                })
+                # The list endpoint deliberately does NOT return the body (it
+                # selects metadata only), so emptiness is judged by word_count,
+                # which it does return. Checking a missing content field here
+                # would read as "empty" for EVERY note and could recycle one that
+                # is full of text — the body is confirmed below before reuse.
+                for candidate in (probe.get("notes") or []):
+                    if (
+                        (candidate.get("title") or "").strip() in ("", "Untitled")
+                        and not candidate.get("word_count")
+                        and not candidate.get("attachment_count")
+                    ):
+                        existing_blank = candidate.get("id") or ""
+                        break
+            except Exception as probe_err:  # noqa: BLE001 — probe is an optimisation
+                log.warning("editor: blank-note probe failed, creating fresh: %s", probe_err)
+
+            note = {}
+            if existing_blank:
+                # Confirm on the full note before reusing it: word_count is a
+                # derived column, and reopening a note that turned out to hold
+                # text would be worse than the extra empty note this avoids.
+                try:
+                    data = await _api_get(ctx, f"/notes/{existing_blank}", {"user_id": uid})
+                    candidate_note = data.get("note", {})
+                    body = (candidate_note.get("content_text") or candidate_note.get("content") or "")
+                    if not body.strip():
+                        log.info("editor: reusing blank note %s instead of creating another", existing_blank)
+                        note_id = existing_blank
+                        note = candidate_note
+                    else:
+                        existing_blank = ""
+                except Exception as confirm_err:  # noqa: BLE001
+                    log.warning("editor: blank-note confirm failed, creating fresh: %s", confirm_err)
+                    existing_blank = ""
+
+            if not existing_blank:
+                result = await _api_post(ctx, "/notes", {
+                    "user_id": uid, "tenant_id": tid,
+                    "title": "Untitled", "content_text": "",
+                })
+                note    = result.get("note", {})
+                note_id = note.get("id", "")
+                if not note_id:
+                    return ui.Error(message="Failed to create note")
         except Exception as e:
             log.error("editor: create new note failed: %s", e)
             return ui.Error(message="Failed to create note. Please try again.")
@@ -174,11 +232,16 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     )
 
     # ── Rich Editor ───────────────────────────────────────────────────────
+    # on_save (Ctrl+S) and on_change (debounced 500ms in the editor component)
+    # go to two DIFFERENT functions on purpose. on_change → note_autosave, which
+    # emits no event and refreshes nothing, so typing is never interrupted;
+    # on_save → note_save, the explicit save, which behaves as before.
     editor = ui.RichEditor(
         content=content_html,
         placeholder="Start writing...",
         param_name="content_text",
         on_save=ui.Call("note_save", note_id=note_id, field="content"),
+        on_change=ui.Call("note_autosave", note_id=note_id),
     )
 
     children = [action_bar, title_input, folder_select]
