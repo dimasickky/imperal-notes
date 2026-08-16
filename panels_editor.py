@@ -24,6 +24,59 @@ def _format_date(iso_str: str) -> str:
         return iso_str[:16]
 
 
+def _fmt_size(n) -> str:
+    if not isinstance(n, (int, float)) or n <= 0:
+        return ""
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.0f}{unit}"
+        n /= 1024
+    return f"{n:.0f}TB"
+
+
+def _attachments_section(note_id: str, attachments: list[dict]) -> object:
+    """Upload/list/delete card — thin panel wrapper over upload_attachment/
+    delete_attachment. Mirrors tasks/panels_task.py's _attachments_section:
+    same shape, same reasoning, adapted for notes' own backend storage
+    (base64 upload to /notes/{note_id}/attachments) instead of Vikunja."""
+    items = [
+        ui.ListItem(
+            id=f"attachment_{a.get('id') or a.get('att_id')}",
+            title=a.get("filename") or a.get("name") or "file",
+            subtitle=_fmt_size(a.get("size")),
+            icon="Paperclip",
+            actions=[{
+                "icon": "Trash2",
+                "label": "Delete",
+                "on_click": ui.Call("delete_attachment", note_id=note_id,
+                                    att_id=a.get("id") or a.get("att_id")),
+                "confirm": f"Delete attachment '{a.get('filename') or a.get('name') or 'file'}'?",
+            }],
+        )
+        for a in attachments if (a.get("id") or a.get("att_id"))
+    ]
+    return ui.Card(
+        title=f"Attachments ({len(items)})",
+        content=ui.Stack([
+            ui.List(
+                items=items, selectable=True,
+                bulk_actions=[
+                    {"label": "Delete", "icon": "Trash2",
+                     "action": ui.Call("delete_attachments")},
+                ],
+            ) if items else ui.Text("No attachments yet.", variant="caption"),
+            ui.FileUpload(
+                param_name="files",
+                multiple=True,
+                max_size_mb=20,
+                on_upload=ui.Call("upload_attachment", note_id=note_id),
+                title="Attach files",
+                hint="Up to 20MB each — select several at once.",
+            ),
+        ], gap=2),
+    )
+
+
 def _prepare_content(note: dict) -> str:
     """Extract and prepare note content for RichEditor."""
     raw = note.get("content") or note.get("content_text") or ""
@@ -137,6 +190,12 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     tags         = note.get("tags", [])
     created      = _format_date(note.get("created_at", ""))
     updated      = _format_date(note.get("updated_at", ""))
+    # The backend already tracks per-note attachments (list_notes returns
+    # attachment_count); get_note's raw response is read defensively here in
+    # case it inlines the attachment array too — if it doesn't, this is just
+    # an empty list and upload still works, it only means the freshly
+    # uploaded file won't show until the next backend release adds the field.
+    attachments  = note.get("attachments") or []
 
     # ── Cached sidebar data ───────────────────────────────────────────────
     all_tags: list = []
@@ -249,5 +308,6 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
         children.append(ui.KeyValue(meta_pairs))
     children.append(tag_input)
     children.append(editor)
+    children.append(_attachments_section(note_id, attachments))
 
     return ui.Stack(children=children, gap=2, className="px-4 pb-4")

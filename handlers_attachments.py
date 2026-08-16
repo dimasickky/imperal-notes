@@ -18,18 +18,34 @@ from imperal_sdk.chat.error_codes import VALIDATION_MISSING_FIELD, VALIDATION_TY
 from error_codes import NOTES_BACKEND_ERROR
 
 
-def _extract_b64(payload) -> tuple[str, str, str]:
-    """Return (data_base64, filename, content_type) from FileUpload payload."""
-    if isinstance(payload, list) and payload:
-        item = payload[0] if isinstance(payload[0], dict) else {}
-    elif isinstance(payload, dict):
-        item = payload
+def _extract_files(payload) -> list[tuple[str, str, str]]:
+    """Return [(data_base64, filename, content_type), ...] from a FileUpload
+    payload.
+
+    Same shape/parsing as tasks/handlers_attachments.py._extract_files — the
+    panel's ui.FileUpload(multiple=True) sends a list[dict], one entry per
+    file selected, each with data_base64/name/content_type; a data: URI
+    prefix is stripped if present. A single dict (older callers / single-file
+    forms) is wrapped as a one-item list. Previously only payload[0] was ever
+    read here, so selecting several files in the panel silently uploaded 1 —
+    this now walks the whole list.
+    """
+    if isinstance(payload, dict):
+        items = [payload]
+    elif isinstance(payload, list):
+        items = [p for p in payload if isinstance(p, dict)]
     else:
-        return "", "", ""
-    b64 = item.get("data_base64", "")
-    if b64.startswith("data:") and "," in b64:
-        b64 = b64.split(",", 1)[1]
-    return b64, item.get("name", "file"), item.get("content_type", "application/octet-stream")
+        return []
+
+    out = []
+    for item in items:
+        b64 = item.get("data_base64", "")
+        if not b64:
+            continue
+        if b64.startswith("data:") and "," in b64:
+            b64 = b64.split(",", 1)[1]
+        out.append((b64, item.get("name", "file"), item.get("content_type", "application/octet-stream")))
+    return out
 
 
 class AttachmentUploadParams(BaseModel):
@@ -70,36 +86,64 @@ class AttachmentDeleteParams(BaseModel):
     data_model=UploadAttachmentResult,
 )
 async def fn_upload_attachment(ctx, params: AttachmentUploadParams) -> ActionResult:
+    """Upload one or more file attachments to a note via the panel's FileUpload payload.
+
+    ui.FileUpload(multiple=True) sends a list of files; each is uploaded with
+    its own request (no bulk endpoint on this backend either), one row per
+    file in the result so a partial failure among several files is visible
+    rather than silently swallowed.
+    """
     uid = require_user_id(ctx)
     if not params.note_id:
         return ActionResult.error("note_id required", code=VALIDATION_MISSING_FIELD)
 
-    b64, filename, content_type = _extract_b64(params.files)
-    if not b64:
+    files = _extract_files(params.files)
+    if not files:
         return ActionResult.error("No file data received", code=VALIDATION_MISSING_FIELD)
 
-    try:
-        file_bytes = base64.b64decode(b64)
-    except Exception:
-        return ActionResult.error("Invalid file data (base64 decode failed)", code=VALIDATION_TYPE_ERROR)
+    uploaded: list = []
+    failed: list[str] = []
 
-    try:
-        result = await _api_upload(
-            ctx,
-            f"/notes/{params.note_id}/attachments",
-            {"user_id": uid},
-            filename, file_bytes, content_type,
+    for b64, filename, content_type in files:
+        try:
+            file_bytes = base64.b64decode(b64)
+        except Exception:
+            failed.append(f"{filename} (invalid base64)")
+            continue
+
+        try:
+            result = await _api_upload(
+                ctx,
+                f"/notes/{params.note_id}/attachments",
+                {"user_id": uid},
+                filename, file_bytes, content_type,
+            )
+            uploaded.append(result.get("attachment", {}))
+        except NotesAPIError as e:
+            failed.append(f"{filename} ({e.status_code} {e.detail})")
+        except Exception as e:
+            log.error("upload_attachment: %s", e)
+            failed.append(f"{filename} (unexpected error)")
+
+    if not uploaded:
+        return ActionResult.error(
+            f"Upload failed for all {len(files)} file(s): {'; '.join(failed)}", code=NOTES_BACKEND_ERROR,
         )
-        att = result.get("attachment", {})
-        return ActionResult.success(
-            data={"attachment": att, "refresh_panels": ["editor"]},
-            summary=f"Uploaded {filename}",
-        )
-    except NotesAPIError as e:
-        return ActionResult.error(f"Upload failed: {e.status_code} {e.detail}", code=NOTES_BACKEND_ERROR)
-    except Exception as e:
-        log.error("upload_attachment: %s", e)
-        return ActionResult.error("An unexpected error occurred. Please try again.", retryable=True, code=INTERNAL)
+
+    if failed:
+        summary = f"Uploaded {len(uploaded)} of {len(files)} file(s) — {len(failed)} failed: {'; '.join(failed)}"
+    else:
+        summary = f"Uploaded {len(uploaded)} file(s)" if len(uploaded) > 1 else f"Uploaded {uploaded[0].get('filename', 'file')}"
+
+    return ActionResult.success(
+        data={
+            "attachment": uploaded[0] if uploaded else None,
+            "uploaded": uploaded,
+            "failed": failed,
+            "refresh_panels": ["editor"],
+        },
+        summary=summary,
+    )
 
 
 @chat.function(

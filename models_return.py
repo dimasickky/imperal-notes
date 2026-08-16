@@ -206,7 +206,9 @@ class EmptyTrashResult(BaseModel):
 # ─── handlers_attachments ─────────────────────────────────────────────────── #
 
 class UploadAttachmentResult(BaseModel):
-    attachment: Any
+    attachment: Any = None
+    uploaded: list = []
+    failed: list[str] = []
     refresh_panels: list[str]
 
 
