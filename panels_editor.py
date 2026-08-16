@@ -65,13 +65,12 @@ def _attachments_section(note_id: str, attachments: list[dict]) -> object:
                      "action": ui.Call("delete_attachments")},
                 ],
             ) if items else ui.Text("No attachments yet.", variant="caption"),
+            ui.Text("Attach files — up to 20MB each, select several at once.", variant="caption"),
             ui.FileUpload(
                 param_name="files",
                 multiple=True,
                 max_size_mb=20,
                 on_upload=ui.Call("upload_attachment", note_id=note_id),
-                title="Attach files",
-                hint="Up to 20MB each — select several at once.",
             ),
         ], gap=2),
     )
