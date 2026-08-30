@@ -243,8 +243,8 @@ async def notes_editor(ctx, note_id: str = "", **kwargs):
     )
 
     action_bar = ui.Stack([
-        ui.Button("Back", icon="ArrowLeft", variant="ghost", size="sm",
-                  on_click=ui.Call("__panel__sidebar")),
+        ui.BackButton(to="Notes",
+                      on_click=ui.Call("__panel__sidebar")),
         ui.Button(pin_label, icon=pin_icon, variant="outline", size="sm",
                   on_click=ui.Call("note_save", note_id=note_id, field="pin")),
         more_menu,

@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.20.2] — 2026-08-31
+
+### Changed
+
+- **imperal-sdk 5.9.22 → 5.13.1** — picks up the new gateway namespaces,
+  unified callable catalog, `ui.BackButton`, tray/menu contributions and
+  the `tests/`-fixture deploy scan fix.
+- Note editor's action bar renders the standard `ui.BackButton`
+  ("← Back") instead of a hand-rolled ghost `ArrowLeft` button — same
+  `__panel__sidebar` target, one less private variant.
+
+## [3.20.1] — 2026-08-16
+
+### Changed
+
+- **Bumped `imperal-sdk` 5.9.12 → 5.9.22.** Diffed both wheels directly
+  (extension.py, context.py, store/client.py, types/models.py, billing/
+  client.py, secrets/client.py, cli/main.py) before touching the pin: every
+  change between the two versions is additive and defaulted (new
+  `StoreClient.for_user()`, `if_match`/`etag` on Store, transparent retry
+  wrapping in the secrets client, new billing fields, CLI fixes). Nothing in
+  this module touches any of those surfaces. Zero behavior change — `imperal
+  build`/`validate` both clean afterward.
+
 ## [3.20.0] — 2026-08-06
 
 ### Fixed
