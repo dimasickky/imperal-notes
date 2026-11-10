@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.22.1] — 2026-11-10
+
+### Changed
+
+- **imperal-sdk 5.9.12 → 6.5.3** — bumped SDK requirement in `requirements.txt` and `imperal.json`.
+- **Manifest category** — declared `"category": "productivity"` for platform catalog indexing.
+
 ## [3.22.0] — 2026-09-07
 
 ### Added
