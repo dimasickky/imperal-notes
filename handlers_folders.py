@@ -10,6 +10,7 @@ from app import (
     _api_get, _api_post, _api_patch, _api_delete,
     require_user_id, _tenant_id, _resolve_folder_name, _resolve_folder_names,
     _resolve_folder_id_or_name, _bad_id,
+    invalidate_folders_cache,
 )
 from models_return import (
     ListFoldersResult, ResolveFolderResult, CreateFolderResult, RenameFolderResult,
@@ -231,6 +232,7 @@ async def fn_create_folder(ctx, params: CreateFolderParams) -> ActionResult:
             "name":      name,
             "icon":      "folder",
         })).get("folder", {})
+        await invalidate_folders_cache(ctx)
         return ActionResult.success(
             data={"folder_id": folder.get("id"), "name": folder.get("name"),
                   "refresh_panels": ["sidebar"]},
@@ -270,6 +272,7 @@ async def fn_rename_folder(ctx, params: RenameFolderParams) -> ActionResult:
             {"user_id": require_user_id(ctx), "name": params.name},
             {},
         )
+        await invalidate_folders_cache(ctx)
         return ActionResult.success(
             data={"folder_id": folder_id, "name": params.name,
                   "refresh_panels": ["sidebar"]},
@@ -301,6 +304,7 @@ async def fn_delete_folder(ctx, params: FolderIdParams) -> ActionResult:
                 code=NOTES_FOLDER_NOT_FOUND,
             )
         await _api_delete(ctx, f"/folders/{folder_id}", {"user_id": require_user_id(ctx)})
+        await invalidate_folders_cache(ctx)
         return ActionResult.success(
             data={"folder_id": folder_id, "refresh_panels": ["sidebar"]},
             summary="Folder deleted, notes moved to root",
@@ -349,6 +353,7 @@ async def fn_delete_folder_with_contents(
 
         # Step 2: delete the folder itself (now empty)
         await _api_delete(ctx, f"/folders/{folder_id}", {"user_id": uid})
+        await invalidate_folders_cache(ctx)
 
         action = "permanently deleted" if params.permanent else "moved to trash"
         return ActionResult.success(
@@ -422,6 +427,7 @@ async def fn_delete_folders(ctx, params: DeleteFoldersParams) -> ActionResult:
         })
         deleted_count = resp.get("deleted_count", 0)
         deleted_ids = resp.get("folder_ids", ids)
+        await invalidate_folders_cache(ctx)
 
         summary = f"Deleted {deleted_count} folder(s)"
         if not_found:

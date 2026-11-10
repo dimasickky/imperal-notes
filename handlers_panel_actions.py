@@ -10,6 +10,7 @@ from app import (
     chat, ActionResult, NotesAPIError,
     _api_get, _api_patch,
     require_user_id, _bad_id,
+    invalidate_tags_cache, invalidate_stats_cache,
 )
 from models_return import NoteSaveResult
 from imperal_sdk.chat.error_codes import VALIDATION_MISSING_FIELD, INTERNAL
@@ -144,6 +145,7 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
         if params.field == "tags":
             await _api_patch(ctx, f"/notes/{params.note_id}", {"user_id": uid},
                              {"tags": params.tags})
+            await invalidate_tags_cache(ctx, uid)
             return ActionResult.success(
                 data={"note_id": params.note_id, "saved": "tags", "refresh_panels": ["sidebar"]},
                 summary="Tags saved",
@@ -153,6 +155,7 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
             new_folder = params.folder_id if params.folder_id else None
             await _api_patch(ctx, f"/notes/{params.note_id}", {"user_id": uid},
                              {"folder_id": new_folder})
+            await invalidate_stats_cache(ctx, uid)
             return ActionResult.success(
                 data={"note_id": params.note_id, "saved": "folder", "refresh_panels": ["sidebar"]},
                 summary="Folder updated",
@@ -162,6 +165,7 @@ async def fn_note_save(ctx, params: NoteSaveParams) -> ActionResult:
             is_archived = params.field == "archive"
             await _api_patch(ctx, f"/notes/{params.note_id}", {"user_id": uid},
                              {"is_archived": is_archived, "is_trashed": False})
+            await invalidate_stats_cache(ctx, uid)
             label = "archived" if is_archived else "restored"
             return ActionResult.success(
                 data={"note_id": params.note_id, "saved": params.field, "refresh_panels": ["sidebar"]},

@@ -291,6 +291,51 @@ class FolderStatsCacheEntry(BaseModel):
     counts: dict
 
 
+# ─── Cache invalidation helpers ─────────────────────────────────────────────── #
+
+async def invalidate_folders_cache(ctx, uid: str | None = None) -> None:
+    """Invalidate cached folders and folder stats for the user."""
+    try:
+        user_id = uid or _user_id(ctx)
+        if user_id and hasattr(ctx, "cache") and ctx.cache:
+            await ctx.cache.delete(f"folders:{user_id}")
+            await ctx.cache.delete(f"stats:{user_id}")
+    except Exception as exc:
+        log.warning("invalidate_folders_cache error: %s", exc)
+
+
+async def invalidate_tags_cache(ctx, uid: str | None = None) -> None:
+    """Invalidate cached tags list for the user."""
+    try:
+        user_id = uid or _user_id(ctx)
+        if user_id and hasattr(ctx, "cache") and ctx.cache:
+            await ctx.cache.delete(f"tags:{user_id}")
+    except Exception as exc:
+        log.warning("invalidate_tags_cache error: %s", exc)
+
+
+async def invalidate_stats_cache(ctx, uid: str | None = None) -> None:
+    """Invalidate cached folder stats for the user."""
+    try:
+        user_id = uid or _user_id(ctx)
+        if user_id and hasattr(ctx, "cache") and ctx.cache:
+            await ctx.cache.delete(f"stats:{user_id}")
+    except Exception as exc:
+        log.warning("invalidate_stats_cache error: %s", exc)
+
+
+async def invalidate_all_notes_cache(ctx, uid: str | None = None) -> None:
+    """Invalidate all cached entities (folders, stats, tags) for the user."""
+    try:
+        user_id = uid or _user_id(ctx)
+        if user_id and hasattr(ctx, "cache") and ctx.cache:
+            await ctx.cache.delete(f"folders:{user_id}")
+            await ctx.cache.delete(f"stats:{user_id}")
+            await ctx.cache.delete(f"tags:{user_id}")
+    except Exception as exc:
+        log.warning("invalidate_all_notes_cache error: %s", exc)
+
+
 # ─── Emitted events (UEB manifest §M7, SDK 3.6+) ─────────────────────────── #
 
 @ext.emits("notes.created")

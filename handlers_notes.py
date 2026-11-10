@@ -9,6 +9,7 @@ from app import (
     NotesAPIError,
     _api_get, _api_patch, _api_post, _api_delete,
     require_user_id, _tenant_id, _resolve_folder_id_or_name, _bad_id,
+    invalidate_stats_cache, invalidate_tags_cache, invalidate_folders_cache,
 )
 from models_notes import (  # noqa: E402
     MAX_NOTES_PER_PAGE, MAX_SEARCH_PER_PAGE,
@@ -211,6 +212,9 @@ async def fn_create_note(ctx, params: CreateNoteParams) -> ActionResult:
             body["folder_id"] = folder_id
 
         note = (await _api_post(ctx, "/notes", body)).get("note", {})
+        await invalidate_stats_cache(ctx)
+        if params.tags:
+            await invalidate_tags_cache(ctx)
         content_chars = len(content)
         created_title = note.get("title") or params.title
         summary = f"Note created: {created_title}"
@@ -292,6 +296,10 @@ async def fn_update_note(ctx, params: UpdateNoteParams) -> ActionResult:
             )
 
         data = await _api_patch(ctx, f"/notes/{params.note_id}", {"user_id": user_id}, changed)
+        if "tags" in changed:
+            await invalidate_tags_cache(ctx)
+        if any(k in changed for k in ("content_text", "is_pinned")):
+            await invalidate_stats_cache(ctx)
         title = data.get("note", {}).get("title", title)
         return ActionResult.success(
             data={"note_id": params.note_id, "title": title, "fields_updated": list(changed.keys()), "was_changed": True},
@@ -404,6 +412,8 @@ async def fn_move_note(ctx, params: MoveNoteParams) -> ActionResult:
             {"user_id": require_user_id(ctx)},
             {"folder_id": folder_id if folder_id else None},
         )
+        await invalidate_folders_cache(ctx)
+        await invalidate_stats_cache(ctx)
         target = folder_id or "All Notes"
         return ActionResult.success(
             data={
@@ -436,6 +446,8 @@ async def fn_delete_note(ctx, params: NoteIdParams) -> ActionResult:
             return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
         await _api_delete(ctx, f"/notes/{params.note_id}",
                           {"user_id": require_user_id(ctx), "permanent": "false"})
+        await invalidate_stats_cache(ctx)
+        await invalidate_folders_cache(ctx)
         undo_action = {"action": "call", "function": "restore_note", "params": {"note_id": params.note_id}}
         return ActionResult.success(
             data={"note_id": params.note_id},
@@ -465,6 +477,8 @@ async def fn_permanent_delete_note(ctx, params: NoteIdParams) -> ActionResult:
             return ActionResult.error(err, code=NOTES_INVALID_NOTE_ID)
         await _api_delete(ctx, f"/notes/{params.note_id}",
                           {"user_id": require_user_id(ctx), "permanent": "true"})
+        await invalidate_stats_cache(ctx)
+        await invalidate_folders_cache(ctx)
         return ActionResult.success(data={"note_id": params.note_id}, summary="Note permanently deleted")
     except NotesAPIError as e:
         return ActionResult.error(f"permanent_delete_note backend returned {e.status_code}: {e.detail}", code=NOTES_BACKEND_ERROR)
@@ -500,6 +514,8 @@ async def fn_delete_notes_from_folder(ctx, params: DeleteNotesFromFolderParams) 
             "folder_id": folder_id,
             "permanent": "true" if params.permanent else "false",
         })
+        await invalidate_stats_cache(ctx)
+        await invalidate_folders_cache(ctx)
         deleted = resp.get("deleted_count", 0)
         action  = "permanently deleted" if params.permanent else "moved to trash"
         return ActionResult.success(
