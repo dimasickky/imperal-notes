@@ -132,6 +132,17 @@ async def notes_sidebar(ctx, folder_id: str = "", view: str = "notes",
                                    view="notes" if view == "trash" else "trash")),
     ], direction="h", wrap=True, sticky=True))
 
+    # ── Quick Stats Bar ──────────────────────────────────────────────────
+    total_words = sum(n.get("word_count", 0) for n in all_notes)
+    pinned_count = sum(1 for n in all_notes if n.get("is_pinned"))
+    if all_notes and view == "notes":
+        children.append(ui.Stats([
+            ui.Stat(label="Notes", value=total_count, icon="FileText", color="blue"),
+            ui.Stat(label="Words", value=total_words, icon="AlignLeft", color="green"),
+            ui.Stat(label="Folders", value=len(folders), icon="Folder", color="purple"),
+            ui.Stat(label="Pinned", value=pinned_count, icon="Pin", color="amber"),
+        ], columns=4))
+
     if view == "new_folder":
         children.append(ui.Input(
             placeholder="Folder name, press Enter...",
